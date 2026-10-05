@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Venta Empleados">
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Venta Empleados</title>
+<style>
+:root{
+  --bg:#f3f5f7; --panel:#fff; --ink:#1b2430; --muted:#6b7684; --line:#e3e7ec;
+  --brand:#0f766e; --brand-ink:#fff; --brand-soft:#e6f4f2;
+  --danger:#c2410c; --danger-soft:#fdeee6; --ok:#15803d;
+  --radius:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font:16px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  -webkit-user-select:none;user-select:none;overscroll-behavior:none}
+input,button,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+.app{display:flex;flex-direction:column;height:100%;padding-top:env(safe-area-inset-top)}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0;font-weight:700;white-space:nowrap}
+header .place{color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+nav{margin-left:auto;display:flex;gap:6px}
+nav button{padding:10px 16px;border-radius:10px;font-weight:600;color:var(--muted)}
+nav button.on{background:var(--brand-soft);color:var(--brand)}
+main{flex:1;min-height:0;display:flex}
+.view{display:none;flex:1;min-height:0}
+.view.on{display:flex}
+
+/* ---- Venta ---- */
+#v-venta{gap:0}
+.left{flex:1.4;display:flex;flex-direction:column;min-width:0;padding:14px}
+.right{flex:1;display:flex;flex-direction:column;min-width:300px;max-width:440px;background:var(--panel);border-left:1px solid var(--line)}
+.search{position:relative}
+.search input{width:100%;padding:14px 44px 14px 16px;font-size:19px;border:2px solid var(--line);border-radius:var(--radius);background:var(--panel);outline:none;-webkit-user-select:text;user-select:text}
+.search input:focus{border-color:var(--brand)}
+.search .clr{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;background:var(--line);color:var(--muted);font-size:18px;display:none}
+.hint{color:var(--muted);font-size:13px;margin:8px 4px}
+.results{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;align-content:start;padding:4px 2px 20px}
+.prod{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px;text-align:left;display:flex;flex-direction:column;gap:6px;min-height:104px;transition:transform .08s}
+.prod:active{transform:scale(.97);background:var(--brand-soft)}
+.prod .code{font-size:12px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+.prod .desc{font-weight:600;font-size:15px;flex:1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.prod .price{font-weight:700;color:var(--brand);font-size:17px}
+.empty{color:var(--muted);text-align:center;padding:40px 20px;grid-column:1/-1}
+
+.ticket-h{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.ticket-h b{font-size:17px}
+.ticket-h button{color:var(--danger);font-weight:600;padding:6px 10px}
+.cart{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+.line{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.line .d{font-weight:600;font-size:15px}
+.line .c{font-size:12px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+.line .imp{font-weight:700;text-align:right;align-self:center;grid-row:1/3;grid-column:2}
+.qty{display:flex;align-items:center;gap:6px;grid-column:1/3;margin-top:4px}
+.qty button{width:40px;height:40px;border-radius:10px;background:var(--bg);font-size:22px;font-weight:700}
+.qty span{min-width:36px;text-align:center;font-weight:700;font-size:17px}
+.qty .unit{color:var(--muted);font-size:13px;margin-left:4px}
+.qty .del{margin-left:auto;width:auto;padding:0 12px;font-size:14px;color:var(--danger);background:var(--danger-soft)}
+.cart .empty{padding:60px 20px}
+.totals{padding:14px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+.totals .row{display:flex;justify-content:space-between;color:var(--muted);font-size:14px}
+.totals .big{display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 12px}
+.totals .big span{font-size:18px;font-weight:600}
+.totals .big b{font-size:36px}
+.btn{display:block;width:100%;padding:16px;border-radius:var(--radius);font-weight:700;font-size:18px;background:var(--brand);color:var(--brand-ink)}
+.btn:disabled{opacity:.35}
+.btn.sec{background:var(--bg);color:var(--ink)}
+.btn.danger{background:var(--danger);color:#fff}
+
+/* ---- Modal ---- */
+.modal{position:fixed;inset:0;background:rgba(15,23,32,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal.on{display:flex}
+.sheet{background:var(--panel);border-radius:20px;width:100%;max-width:620px;max-height:100%;overflow:auto;padding:22px}
+.sheet h2{margin:0 0 4px;font-size:22px}
+.sheet .sub{color:var(--muted);margin-bottom:16px}
+.pay-total{display:flex;justify-content:space-between;align-items:baseline;background:var(--bg);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px}
+.pay-total b{font-size:34px}
+.methods{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.methods button{padding:18px 8px;border-radius:var(--radius);border:2px solid var(--line);font-weight:700;font-size:17px;background:var(--panel)}
+.methods button.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+.cash{display:none}
+.cash.on{display:block}
+.bills{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.bills button{padding:14px 4px;border-radius:12px;background:var(--bg);font-weight:700;font-size:17px}
+.bills button.exact{background:var(--brand-soft);color:var(--brand)}
+.recv{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+.recv label{font-weight:600;white-space:nowrap}
+.recv input{flex:1;padding:12px 14px;font-size:24px;font-weight:700;text-align:right;border:2px solid var(--line);border-radius:12px;outline:none;-webkit-user-select:text;user-select:text}
+.recv input:focus{border-color:var(--brand)}
+.change{display:flex;justify-content:space-between;align-items:baseline;padding:14px 18px;border-radius:var(--radius);background:var(--brand-soft);margin-bottom:16px}
+.change span{font-weight:600;font-size:18px}
+.change b{font-size:40px;color:var(--brand)}
+.change.short{background:var(--danger-soft)}
+.change.short b{color:var(--danger);font-size:22px}
+.actions{display:flex;gap:10px}
+.actions .btn{flex:1}
+.done{text-align:center;padding:10px 0}
+.done .chk{width:72px;height:72px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 12px}
+.done .chg{font-size:48px;font-weight:800;color:var(--brand);margin:6px 0 14px}
+
+/* ---- Paneles generales ---- */
+.pane{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:18px;max-width:1000px;margin:0 auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:14px}
+.card h3{margin:0 0 6px;font-size:17px}
+.card p{margin:0 0 12px;color:var(--muted);font-size:14px}
+.card .btn{width:auto;display:inline-block;padding:12px 20px;font-size:16px;margin:4px 6px 4px 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.stat small{color:var(--muted);display:block;font-size:13px}
+.stat b{font-size:24px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--muted);font-weight:600;font-size:13px}
+td.n,th.n{text-align:right}
+tr.cancel td{color:var(--muted);text-decoration:line-through}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--bg)}
+.tag.x{background:var(--danger-soft);color:var(--danger);text-decoration:none}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.field label{font-weight:600;font-size:14px}
+.field input,.field select{padding:12px 14px;border:2px solid var(--line);border-radius:12px;outline:none;font-size:17px;background:var(--panel);-webkit-user-select:text;user-select:text}
+.inline{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.inline .field{flex:1;min-width:160px}
+.linkbtn{color:var(--brand);font-weight:600;padding:6px 8px}
+.linkbtn.red{color:var(--danger)}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:12px;font-weight:600;transition:transform .25s;z-index:80;max-width:90%}
+.toast.on{transform:translateX(-50%) translateY(0)}
+
+@media (max-width:760px){
+  #v-venta{flex-direction:column}
+  .right{max-width:none;min-width:0;border-left:0;border-top:1px solid var(--line);max-height:50%}
+  header .place{display:none}
+  nav button{padding:8px 10px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Venta Empleados</h1>
+    <span class="place" id="hdrPlace"></span>
+    <nav>
+      <button data-v="venta" class="on">Venta</button>
+      <button data-v="ventas">Ventas</button>
+      <button data-v="catalogo">Catálogo</button>
+      <button data-v="reporte">Reporte</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ========== VENTA ========== -->
+    <section class="view on" id="v-venta">
+      <div class="left">
+        <div class="search">
+          <input id="q" type="search" placeholder="Buscar por código o descripción…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+          <button class="clr" id="qClr" aria-label="Limpiar">×</button>
+        </div>
+        <div class="hint" id="qHint"></div>
+        <div class="results" id="results"></div>
+      </div>
+      <div class="right">
+        <div class="ticket-h"><b id="tkTitle">Nueva venta</b><button id="btnClear">Vaciar</button></div>
+        <div class="cart" id="cart"></div>
+        <div class="totals">
+          <div class="row"><span id="tkCount">0 artículos</span></div>
+          <div class="big"><span>Total</span><b id="tkTotal">$0.00</b></div>
+          <button class="btn" id="btnPay" disabled>Cobrar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== VENTAS (historial) ========== -->
+    <section class="view" id="v-ventas">
+      <div class="pane">
+        <div class="inline" style="margin-bottom:6px">
+          <div class="field"><label>Fecha</label><input type="date" id="hDate"></div>
+        </div>
+        <div class="stats" id="hStats"></div>
+        <div class="card" style="padding:6px 10px">
+          <table><thead><tr><th>Folio</th><th>Hora</th><th>Artículos</th><th>Pago</th><th class="n">Total</th><th></th></tr></thead>
+          <tbody id="hBody"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== CATÁLOGO ========== -->
+    <section class="view" id="v-catalogo">
+      <div class="pane">
+        <div class="card">
+          <h3>Cargar catálogo desde Excel</h3>
+          <p>El archivo debe tener tres columnas: <b>Código</b>, <b>Descripción</b> y <b>Precio</b> (primera hoja, con encabezados en la primera fila). Al cargar se reemplaza el catálogo actual; las ventas ya registradas no se modifican.</p>
+          <input type="file" id="fileCat" accept=".xlsx,.xls,.csv" hidden>
+          <button class="btn" id="btnLoadCat">Seleccionar archivo Excel</button>
+          <button class="btn sec" id="btnTpl">Descargar plantilla</button>
+        </div>
+        <div class="card">
+          <div class="inline" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 id="catTitle" style="margin:0">Catálogo</h3>
+            <span class="hint" id="catInfo" style="margin:0"></span>
+          </div>
+          <table><thead><tr><th>Código</th><th>Descripción</th><th class="n">Precio</th></tr></thead><tbody id="catBody"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== REPORTE ========== -->
+    <section class="view" id="v-reporte">
+      <div class="pane">
+        <div class="card">
+          <h3>Reporte de ventas en Excel</h3>
+          <p>Incluye el detalle de cada artículo vendido, las ventas, el resumen por producto y por forma de pago. Las ventas canceladas aparecen marcadas y no suman en los totales.</p>
+          <div class="inline">
+            <div class="field"><label>Desde</label><input type="date" id="rFrom"></div>
+            <div class="field"><label>Hasta</label><input type="date" id="rTo"></div>
+          </div>
+          <div class="stats" id="rStats"></div>
+          <button class="btn" id="btnExport">Generar Excel</button>
+          <button class="btn sec" id="btnAll">Todo el periodo</button>
+        </div>
+        <div class="card">
+          <h3>Configuración</h3>
+          <div class="field"><label>Lugar / evento de venta (aparece en cada venta y en el reporte)</label><input id="cfgPlace" placeholder="Ej. Planta Zapopan, Feria SESAJAL…"></div>
+        </div>
+        <div class="card">
+          <h3>Cerrar periodo</h3>
+          <p>Borra todas las ventas guardadas en este iPad. Hazlo solo después de generar y guardar el reporte en Excel.</p>
+          <button class="btn danger" id="btnWipe">Borrar ventas…</button>
+        </div>
+        <p class="hint" id="storeInfo"></p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Modal de cobro -->
+<div class="modal" id="mPay">
+  <div class="sheet" id="paySheet"></div>
+</div>
+<!-- Modal genérico -->
+<div class="modal" id="mGen"><div class="sheet" id="genSheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="xlsx.full.min.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const money = n => '$' + (Math.round(n * 100) / 100).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2});
+const r2 = n => Math.round(n * 100) / 100;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const pad = (n, l=2) => String(n).padStart(l, '0');
+const dKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const METHODS = ['Efectivo', 'Tarjeta', 'Transferencia'];
+
+/* ---------- Almacenamiento local ---------- */
+const K = {cat:'pos.catalog', sales:'pos.sales', cfg:'pos.config', seq:'pos.seq'};
+const load = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { alert('No se pudo guardar en el iPad: ' + e.message); return false; } };
+
+let catalog = load(K.cat, {items:[], file:'', loadedAt:null});
+let sales = load(K.sales, []);
+let cfg = load(K.cfg, {place:''});
+let cart = []; // {code, desc, price, qty}
+
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2200);
+}
+
+/* ---------- Navegación ---------- */
+function show(v) {
+  $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  $$('.view').forEach(s => s.classList.toggle('on', s.id === 'v-' + v));
+  if (v === 'ventas') renderHistory();
+  if (v === 'catalogo') renderCatalog();
+  if (v === 'reporte') renderReport();
+  if (v === 'venta') setTimeout(() => $('#q').focus(), 50);
+}
+$$('nav button').forEach(b => b.onclick = () => show(b.dataset.v));
+
+/* ---------- Búsqueda ---------- */
+let index = [];
+function buildIndex() {
+  index = catalog.items.map(it => ({it, c: norm(it.code), t: norm(it.code + ' ' + it.desc)}));
+}
+function search(q) {
+  const nq = norm(q);
+  if (!nq) return catalog.items.slice(0, 60);
+  const words = nq.split(/\s+/);
+  const exact = [], starts = [], rest = [];
+  for (const x of index) {
+    if (x.c === nq) exact.push(x.it);
+    else if (words.every(w => x.t.includes(w))) (x.c.startsWith(nq) ? starts : rest).push(x.it);
+  }
+  return exact.concat(starts, rest).slice(0, 120);
+}
+function renderResults() {
+  const q = $('#q').value;
+  $('#qClr').style.display = q ? 'block' : 'none';
+  const box = $('#results');
+  if (!catalog.items.length) {
+    box.innerHTML = `<div class="empty">No hay catálogo cargado.<br><br><button class="btn" style="width:auto;display:inline-block;padding:12px 20px" onclick="document.querySelector('[data-v=catalogo]').click()">Cargar catálogo</button></div>`;
+    $('#qHint').textContent = ''; return;
+  }
+  const res = search(q);
+  $('#qHint').textContent = q ? `${res.length} resultado${res.length===1?'':'s'}` : `${catalog.items.length} productos en catálogo · toca un producto para agregarlo`;
+  box.innerHTML = res.length ? res.map((it, i) => `
+    <button class="prod" data-i="${catalog.items.indexOf(it)}">
+      <span class="code">${esc(it.code)}</span>
+      <span class="desc">${esc(it.desc)}</span>
+      <span class="price">${money(it.price)}</span>
+    </button>`).join('') : `<div class="empty">Sin resultados para “${esc(q)}”</div>`;
+}
+$('#results').addEventListener('click', e => {
+  const b = e.target.closest('.prod'); if (!b) return;
+  addToCart(catalog.items[+b.dataset.i]);
+});
+$('#q').addEventListener('input', renderResults);
+$('#q').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const q = $('#q').value; if (!q.trim()) return;
+  const res = search(q);
+  const exact = res.find(it => norm(it.code) === norm(q));
+  const pick = exact || (res.length === 1 ? res[0] : null);
+  if (pick) { addToCart(pick); $('#q').value = ''; renderResults(); }
+  else $('#q').blur();
+});
+$('#qClr').onclick = () => { $('#q').value = ''; renderResults(); $('#q').focus(); };
+
+/* ---------- Carrito ---------- */
+function addToCart(it) {
+  const l = cart.find(x => x.code === it.code);
+  if (l) l.qty++; else cart.push({code: it.code, desc: it.desc, price: it.price, qty: 1});
+  renderCart();
+  toast('+1 ' + it.desc);
+}
+const cartTotal = () => r2(cart.reduce((s, l) => s + l.price * l.qty, 0));
+function renderCart() {
+  const box = $('#cart');
+  const n = cart.reduce((s, l) => s + l.qty, 0);
+  box.innerHTML = cart.length ? cart.map((l, i) => `
+    <div class="line">
+      <div class="d">${esc(l.desc)}</div>
+      <div class="imp">${money(l.price * l.qty)}</div>
+      <div class="c">${esc(l.code)}</div>
+      <div class="qty">
+        <button data-a="-" data-i="${i}">−</button><span>${l.qty}</span><button data-a="+" data-i="${i}">+</button>
+        <span class="unit">× ${money(l.price)}</span>
+        <button class="del" data-a="x" data-i="${i}">Quitar</button>
+      </div>
+    </div>`).join('') : `<div class="empty">Busca y toca un producto<br>para agregarlo a la venta</div>`;
+  $('#tkCount').textContent = `${n} artículo${n===1?'':'s'}`;
+  $('#tkTotal').textContent = money(cartTotal());
+  $('#btnPay').disabled = !cart.length;
+  $('#tkTitle').textContent = 'Nueva venta · Folio ' + nextFolioPreview();
+}
+$('#cart').addEventListener('click', e => {
+  const b = e.target.closest('button[data-a]'); if (!b) return;
+  const l = cart[+b.dataset.i];
+  if (b.dataset.a === '+') l.qty++;
+  else if (b.dataset.a === '-') { l.qty--; if (l.qty <= 0) cart.splice(+b.dataset.i, 1); }
+  else cart.splice(+b.dataset.i, 1);
+  renderCart();
+});
+$('#btnClear').onclick = () => {
+  if (!cart.length) return;
+  confirmBox('¿Vaciar la venta actual?', 'Se quitarán todos los artículos.', 'Vaciar', () => { cart = []; renderCart(); });
+};
+
+/* ---------- Folios ---------- */
+function nextFolioPreview() { return pad((load(K.seq, 0)) + 1, 5); }
+function takeFolio() { const n = load(K.seq, 0) + 1; save(K.seq, n); return pad(n, 5); }
+
+/* ---------- Cobro ---------- */
+let pay = {method: 'Efectivo', received: ''};
+$('#btnPay').onclick = () => { pay = {method: 'Efectivo', received: ''}; renderPay(); $('#mPay').classList.add('on'); };
+function billOptions(total) {
+  const bills = [20, 50, 100, 200, 500, 1000];
+  const opts = new Set();
+  for (const b of bills) { const v = Math.ceil(total / b) * b; if (v >= total) opts.add(v); }
+  return [...opts].filter(v => v > total).sort((a, b) => a - b).slice(0, 7);
+}
+function payRecv() { return parseFloat(String(pay.received).replace(/[^0-9.]/g, '')) || 0; }
+function renderPay() {
+  const total = cartTotal();
+  const isCash = pay.method === 'Efectivo';
+  $('#paySheet').innerHTML = `
+    <h2>Cobrar</h2>
+    <div class="sub">${cart.reduce((s,l)=>s+l.qty,0)} artículos · Folio ${nextFolioPreview()}</div>
+    <div class="pay-total"><span>Total a pagar</span><b>${money(total)}</b></div>
+    <div class="methods">${METHODS.map(m => `<button data-m="${m}" class="${m===pay.method?'on':''}">${m}</button>`).join('')}</div>
+    <div class="cash ${isCash?'on':''}">
+      <div class="bills">
+        <button class="exact" data-b="${total}">Exacto</button>
+        ${billOptions(total).map(v => `<button data-b="${v}">${money(v).replace('.00','')}</button>`).join('')}
+      </div>
+      <div class="recv"><label>Recibido</label><input id="recv" inputmode="decimal" placeholder="0.00" value="${esc(pay.received)}"></div>
+      <div class="change" id="chgBox"><span id="chgLbl">Cambio</span><b id="chgVal">—</b></div>
+    </div>
+    <div class="actions">
+      <button class="btn sec" id="payCancel">Regresar</button>
+      <button class="btn" id="payOk">Registrar venta</button>
+    </div>`;
+  $('#recv').oninput = () => { pay.received = $('#recv').value; updateChange(); };
+  updateChange();
+}
+function updateChange() {
+  const total = cartTotal(), recv = payRecv(), change = r2(recv - total);
+  const isCash = pay.method === 'Efectivo';
+  const short = recv > 0 && change < 0;
+  $('#chgBox').classList.toggle('short', short);
+  $('#chgLbl').textContent = short ? 'Falta' : 'Cambio';
+  $('#chgVal').textContent = recv ? money(Math.abs(change)) : '—';
+  $('#payOk').disabled = isCash && recv < total;
+}
+$('#paySheet').addEventListener('click', e => {
+  const m = e.target.closest('[data-m]'); if (m) { pay.method = m.dataset.m; renderPay(); return; }
+  const b = e.target.closest('[data-b]'); if (b) { pay.received = String(b.dataset.b); renderPay(); return; }
+  if (e.target.id === 'payCancel') { $('#mPay').classList.remove('on'); return; }
+  if (e.target.id === 'payOk') finishSale();
+});
+function finishSale() {
+  const total = cartTotal();
+  const isCash = pay.method === 'Efectivo';
+  const recv = isCash ? payRecv() : total;
+  const now = new Date();
+  const sale = {
+    folio: takeFolio(), ts: now.toISOString(), date: dKey(now), time: hhmm(now),
+    place: cfg.place || '', method: pay.method,
+    items: cart.map(l => ({code: l.code, desc: l.desc, price: l.price, qty: l.qty, amount: r2(l.price * l.qty)})),
+    total, received: r2(recv), change: isCash ? r2(recv - total) : 0, status: 'OK'
+  };
+  sales.push(sale);
+  if (!save(K.sales, sales)) { sales.pop(); return; }
+  cart = []; renderCart();
+  $('#paySheet').innerHTML = `
+    <div class="done">
+      <div class="chk">✓</div>
+      <h2>Venta registrada · Folio ${sale.folio}</h2>
+      <div class="sub">${sale.method} · Total ${money(sale.total)}</div>
+      ${isCash ? `<div>Cambio a entregar</div><div class="chg">${money(sale.change)}</div>` : '<div style="height:14px"></div>'}
+      <button class="btn" id="payNew">Nueva venta</button>
+    </div>`;
+  $('#payNew').onclick = () => { $('#mPay').classList.remove('on'); $('#q').value=''; renderResults(); $('#q').focus(); };
+}
+
+/* ---------- Historial ---------- */
+$('#hDate').value = dKey(new Date());
+$('#hDate').onchange = renderHistory;
+function summarize(list) {
+  const ok = list.filter(s => s.status === 'OK');
+  const by = Object.fromEntries(METHODS.map(m => [m, 0]));
+  ok.forEach(s => by[s.method] = r2((by[s.method] || 0) + s.total));
+  return {count: ok.length, total: r2(ok.reduce((a, s) => a + s.total, 0)), by, canceled: list.length - ok.length};
+}
+function statsHTML(sm) {
+  return `<div class="stat"><small>Ventas</small><b>${sm.count}</b></div>
+    <div class="stat"><small>Total vendido</small><b>${money(sm.total)}</b></div>
+    ${METHODS.map(m => `<div class="stat"><small>${m}</small><b>${money(sm.by[m] || 0)}</b></div>`).join('')}`;
+}
+function renderHistory() {
+  const d = $('#hDate').value;
+  const list = sales.filter(s => s.date === d).slice().reverse();
+  $('#hStats').innerHTML = statsHTML(summarize(list));
+  $('#hBody').innerHTML = list.length ? list.map(s => `
+    <tr class="${s.status!=='OK'?'cancel':''}">
+      <td>${s.folio}</td><td>${s.time}</td>
+      <td>${s.items.map(i => `${i.qty}× ${esc(i.desc)}`).join('<br>')}</td>
+      <td>${s.method}</td><td class="n">${money(s.total)}</td>
+      <td class="n">${s.status==='OK' ? `<button class="linkbtn red" data-f="${s.folio}">Cancelar</button>` : '<span class="tag x">Cancelada</span>'}</td>
+    </tr>`).join('') : `<tr><td colspan="6" class="empty">Sin ventas en esta fecha</td></tr>`;
+}
+$('#hBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-f]'); if (!b) return;
+  const s = sales.find(x => x.folio === b.dataset.f);
+  confirmBox(`¿Cancelar la venta ${s.folio}?`, `${money(s.total)} · ${s.method}. Quedará en el reporte marcada como cancelada.`, 'Cancelar venta', () => {
+    s.status = 'CANCELADA'; s.canceledAt = new Date().toISOString(); save(K.sales, sales); renderHistory(); toast('Venta ' + s.folio + ' cancelada');
+  });
+});
+
+/* ---------- Catálogo ---------- */
+function renderCatalog() {
+  const its = catalog.items;
+  $('#catTitle').textContent = `Catálogo (${its.length} productos)`;
+  $('#catInfo').textContent = catalog.loadedAt ? `${catalog.file} · cargado ${new Date(catalog.loadedAt).toLocaleString('es-MX')}` : 'Sin catálogo';
+  $('#catBody').innerHTML = its.length ? its.slice(0, 500).map(it => `<tr><td>${esc(it.code)}</td><td>${esc(it.desc)}</td><td class="n">${money(it.price)}</td></tr>`).join('')
+    + (its.length > 500 ? `<tr><td colspan="3" class="hint">… y ${its.length-500} más</td></tr>` : '') : `<tr><td colspan="3" class="empty">Carga un archivo de Excel para empezar</td></tr>`;
+}
+$('#btnLoadCat').onclick = () => $('#fileCat').click();
+$('#fileCat').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), {type: 'array'});
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1, raw: true, defval: ''});
+    const {items, skipped} = parseCatalog(rows);
+    if (!items.length) { alert('No se encontraron productos. Revisa que el archivo tenga las columnas Código, Descripción y Precio.'); return; }
+    confirmBox(`¿Reemplazar el catálogo?`, `Se cargarán ${items.length} productos desde “${f.name}”.${skipped ? ` Se omitieron ${skipped} filas sin código o precio válido.` : ''}`, 'Cargar', () => {
+      catalog = {items, file: f.name, loadedAt: new Date().toISOString()};
+      save(K.cat, catalog); buildIndex(); renderCatalog(); renderResults(); toast(`Catálogo cargado: ${items.length} productos`);
+    });
+  } catch (err) { alert('No se pudo leer el archivo: ' + err.message); }
+};
+function parseCatalog(rows) {
+  let ci = 0, di = 1, pi = 2, start = 0;
+  const h = (rows[0] || []).map(norm);
+  const find = keys => h.findIndex(x => keys.some(k => x.includes(k)));
+  const c = find(['codigo','clave','sku','code','cod']), d = find(['descrip','producto','articulo','nombre']), p = find(['precio','price','importe','venta']);
+  if (c >= 0 || d >= 0 || p >= 0) { start = 1; if (c >= 0) ci = c; if (d >= 0) di = d; if (p >= 0) pi = p; }
+  else if (isNaN(parseNum((rows[0]||[])[2]))) start = 1;
+  const items = [], seen = new Map(); let skipped = 0;
+  for (let r = start; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const code = String(row[ci] ?? '').trim(), desc = String(row[di] ?? '').trim(), price = parseNum(row[pi]);
+    if (!code && !desc) continue;
+    if (!code || isNaN(price)) { skipped++; continue; }
+    const it = {code, desc: desc || code, price: r2(price)};
+    if (seen.has(code)) items[seen.get(code)] = it; else { seen.set(code, items.length); items.push(it); }
+  }
+  return {items, skipped};
+}
+function parseNum(v) { if (typeof v === 'number') return v; const s = String(v ?? '').replace(/[$,\s]/g, ''); return s === '' ? NaN : Number(s); }
+$('#btnTpl').onclick = () => {
+  const ws = XLSX.utils.aoa_to_sheet([['Código','Descripción','Precio'],['A001','Ejemplo producto 1',25],['A002','Ejemplo producto 2',49.5]]);
+  ws['!cols'] = [{wch:14},{wch:40},{wch:10}];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Catalogo');
+  deliverWorkbook(wb, 'Plantilla_Catalogo.xlsx');
+};
+
+/* ---------- Reporte ---------- */
+function rangeSales() {
+  const a = $('#rFrom').value, b = $('#rTo').value;
+  return sales.filter(s => (!a || s.date >= a) && (!b || s.date <= b));
+}
+function renderReport() {
+  if (!$('#rFrom').value) { const d = dKey(new Date()); $('#rFrom').value = d; $('#rTo').value = d; }
+  $('#rStats').innerHTML = statsHTML(summarize(rangeSales()));
+  $('#cfgPlace').value = cfg.place || '';
+  let bytes = 0; try { for (const k of Object.values(K)) bytes += (localStorage.getItem(k) || '').length; } catch {}
+  const dates = sales.map(s => s.date).sort();
+  $('#storeInfo').textContent = `En este iPad: ${sales.length} ventas guardadas${dates.length ? ` (del ${dates[0]} al ${dates[dates.length-1]})` : ''} · ${(bytes/1024).toFixed(0)} KB usados`;
+}
+$('#rFrom').onchange = $('#rTo').onchange = renderReport;
+$('#btnAll').onclick = () => {
+  const dates = sales.map(s => s.date).sort();
+  $('#rFrom').value = dates[0] || ''; $('#rTo').value = dates[dates.length-1] || ''; renderReport();
+};
+$('#cfgPlace').onchange = () => { cfg.place = $('#cfgPlace').value.trim(); save(K.cfg, cfg); updateHeader(); toast('Lugar guardado'); };
+
+$('#btnExport').onclick = () => {
+  const list = rangeSales();
+  if (!list.length) { toast('No hay ventas en el rango seleccionado'); return; }
+  const wb = XLSX.utils.book_new();
+  const ok = list.filter(s => s.status === 'OK');
+
+  // Resumen
+  const sm = summarize(list);
+  const res = [
+    ['Reporte de venta a empleados'], [],
+    ['Periodo', `${$('#rFrom').value || '—'} a ${$('#rTo').value || '—'}`],
+    ['Generado', new Date().toLocaleString('es-MX')],
+    ['Lugares', [...new Set(list.map(s => s.place).filter(Boolean))].join(', ') || '—'], [],
+    ['Ventas registradas', sm.count], ['Ventas canceladas', sm.canceled], ['Total vendido', sm.total], [],
+    ['Forma de pago', 'Ventas', 'Importe'],
+    ...METHODS.map(m => [m, ok.filter(s => s.method === m).length, sm.by[m] || 0]),
+    ['TOTAL', sm.count, sm.total]
+  ];
+  addSheet(wb, 'Resumen', res, [{wch:24},{wch:28},{wch:14}], [8, 11, 12, 13, 14]);
+
+  // Detalle por artículo
+  const det = [['Folio','Fecha','Hora','Lugar','Código','Descripción','Cantidad','Precio unitario','Importe','Forma de pago','Estatus']];
+  list.forEach(s => s.items.forEach(i => det.push([s.folio, s.date, s.time, s.place, i.code, i.desc, i.qty, i.price, i.amount, s.method, s.status])));
+  addSheet(wb, 'Detalle', det, [{wch:8},{wch:11},{wch:7},{wch:18},{wch:14},{wch:40},{wch:9},{wch:13},{wch:12},{wch:14},{wch:11}], null, [7, 8]);
+
+  // Ventas
+  const vt = [['Folio','Fecha','Hora','Lugar','Artículos','Total','Forma de pago','Recibido','Cambio','Estatus']];
+  list.forEach(s => vt.push([s.folio, s.date, s.time, s.place, s.items.reduce((a,i)=>a+i.qty,0), s.total, s.method, s.received, s.change, s.status]));
+  addSheet(wb, 'Ventas', vt, [{wch:8},{wch:11},{wch:7},{wch:18},{wch:10},{wch:12},{wch:14},{wch:12},{wch:10},{wch:11}], null, [5, 7, 8]);
+
+  // Por producto
+  const agg = new Map();
+  ok.forEach(s => s.items.forEach(i => {
+    const a = agg.get(i.code) || {code: i.code, desc: i.desc, qty: 0, amount: 0};
+    a.qty += i.qty; a.amount = r2(a.amount + i.amount); agg.set(i.code, a);
+  }));
+  const pr = [['Código','Descripción','Cantidad vendida','Importe']];
+  [...agg.values()].sort((a,b) => b.amount - a.amount).forEach(a => pr.push([a.code, a.desc, a.qty, a.amount]));
+  pr.push(['', 'TOTAL', [...agg.values()].reduce((s,a)=>s+a.qty,0), sm.total]);
+  addSheet(wb, 'Por producto', pr, [{wch:14},{wch:40},{wch:16},{wch:14}], null, [3]);
+
+  const a = $('#rFrom').value, b = $('#rTo').value;
+  deliverWorkbook(wb, `Ventas_Empleados_${a}${b && b !== a ? '_a_' + b : ''}.xlsx`);
+};
+function addSheet(wb, name, aoa, cols, moneyRows, moneyCols) {
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = cols;
+  const fmt = '"$"#,##0.00';
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let R = 1; R <= range.e.r; R++) for (let C = 0; C <= range.e.c; C++) {
+    const cell = ws[XLSX.utils.encode_cell({r:R, c:C})];
+    if (!cell || cell.t !== 'n') continue;
+    if ((moneyCols && moneyCols.includes(C)) || (moneyRows && moneyRows.includes(R) && C === (aoa[R].length - 1))) cell.z = fmt;
+  }
+  if (aoa.length > 1 && !moneyRows) ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:range.e.r, c:range.e.c}})};
+  XLSX.utils.book_append_sheet(wb, ws, name);
+}
+async function deliverWorkbook(wb, name) {
+  const data = XLSX.write(wb, {bookType: 'xlsx', type: 'array'});
+  const blob = new Blob([data], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const file = new File([blob], name, {type: blob.type});
+  if (navigator.canShare && navigator.canShare({files: [file]})) {
+    try { await navigator.share({files: [file], title: name}); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+$('#btnWipe').onclick = () => {
+  if (!sales.length) { toast('No hay ventas guardadas'); return; }
+  const tot = summarize(sales);
+  $('#genSheet').innerHTML = `<h2>Borrar ${sales.length} ventas</h2>
+    <div class="sub">Total ${money(tot.total)}. Esta acción no se puede deshacer. Escribe <b>BORRAR</b> para confirmar.</div>
+    <div class="field"><input id="wipeTxt" autocapitalize="characters" autocomplete="off"></div>
+    <label style="display:flex;gap:8px;align-items:center;margin-bottom:16px"><input type="checkbox" id="wipeSeq"> Reiniciar folios a 00001</label>
+    <div class="actions"><button class="btn sec" id="gNo">Regresar</button><button class="btn danger" id="gYes">Borrar</button></div>`;
+  $('#mGen').classList.add('on');
+  $('#gNo').onclick = () => $('#mGen').classList.remove('on');
+  $('#gYes').onclick = () => {
+    if ($('#wipeTxt').value.trim().toUpperCase() !== 'BORRAR') { toast('Escribe BORRAR para confirmar'); return; }
+    sales = []; save(K.sales, sales); if ($('#wipeSeq').checked) save(K.seq, 0);
+    $('#mGen').classList.remove('on'); renderReport(); renderCart(); toast('Ventas borradas');
+  };
+};
+
+/* ---------- Utilidades UI ---------- */
+function confirmBox(title, sub, okText, fn) {
+  $('#genSheet').innerHTML = `<h2>${esc(title)}</h2><div class="sub">${esc(sub)}</div>
+    <div class="actions"><button class="btn sec" id="gNo">Regresar</button><button class="btn" id="gYes">${esc(okText)}</button></div>`;
+  $('#mGen').classList.add('on');
+  $('#gNo').onclick = () => $('#mGen').classList.remove('on');
+  $('#gYes').onclick = () => { $('#mGen').classList.remove('on'); fn(); };
+}
+function updateHeader() { $('#hdrPlace').textContent = cfg.place ? '· ' + cfg.place : ''; }
+
+/* ---------- Inicio ---------- */
+buildIndex(); updateHeader(); renderResults(); renderCart();
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
