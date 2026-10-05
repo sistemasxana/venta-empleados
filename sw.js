@@ -11,3 +11,4 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   e.respondWith(caches.match(e.request, {ignoreSearch: true}).then(r => r || fetch(e.request)));
 });
+
