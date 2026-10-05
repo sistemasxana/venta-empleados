@@ -131,6 +131,14 @@ tr.cancel td{color:var(--muted);text-decoration:line-through}
 .inline .field{flex:1;min-width:160px}
 .linkbtn{color:var(--brand);font-weight:600;padding:6px 8px}
 .linkbtn.red{color:var(--danger)}
+.tag.m{background:var(--brand-soft);color:var(--brand)}
+.empty .btn{width:auto;display:inline-block;padding:12px 20px;margin-top:14px}
+.chk-row{display:flex;gap:10px;align-items:center;margin:4px 0 16px;font-weight:600}
+.chk-row input{width:22px;height:22px}
+.err{color:var(--danger);font-weight:600;min-height:20px;margin:-4px 0 10px;font-size:14px}
+.upd{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-weight:600;z-index:90;display:none;gap:12px;align-items:center}
+.upd.on{display:flex}
+.upd button{background:var(--brand);color:#fff;padding:8px 14px;border-radius:8px;font-weight:700}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:12px;font-weight:600;transition:transform .25s;z-index:80;max-width:90%}
 .toast.on{transform:translateX(-50%) translateY(0)}
 
@@ -204,9 +212,10 @@ tr.cancel td{color:var(--muted);text-decoration:line-through}
         <div class="card">
           <div class="inline" style="justify-content:space-between;align-items:center;margin-bottom:8px">
             <h3 id="catTitle" style="margin:0">Catálogo</h3>
-            <span class="hint" id="catInfo" style="margin:0"></span>
+            <button class="btn" id="btnAddProd" style="margin:0">+ Agregar producto</button>
           </div>
-          <table><thead><tr><th>Código</th><th>Descripción</th><th class="n">Precio</th></tr></thead><tbody id="catBody"></tbody></table>
+          <p class="hint" id="catInfo" style="margin:0 0 8px"></p>
+          <table><thead><tr><th>Código</th><th>Descripción</th><th class="n">Precio</th><th></th></tr></thead><tbody id="catBody"></tbody></table>
         </div>
       </div>
     </section>
@@ -247,6 +256,7 @@ tr.cancel td{color:var(--muted);text-decoration:line-through}
 <!-- Modal genérico -->
 <div class="modal" id="mGen"><div class="sheet" id="genSheet"></div></div>
 <div class="toast" id="toast"></div>
+<div class="upd" id="upd">Hay una nueva versión de la app <button id="updBtn">Actualizar</button></div>
 
 <script src="xlsx.full.min.js"></script>
 <script>
@@ -322,9 +332,10 @@ function renderResults() {
       <span class="code">${esc(it.code)}</span>
       <span class="desc">${esc(it.desc)}</span>
       <span class="price">${money(it.price)}</span>
-    </button>`).join('') : `<div class="empty">Sin resultados para “${esc(q)}”</div>`;
+    </button>`).join('') : `<div class="empty">Sin resultados para “${esc(q)}”<br><button class="btn" id="addFromSearch">+ Agregar producto nuevo</button></div>`;
 }
 $('#results').addEventListener('click', e => {
+  if (e.target.id === 'addFromSearch') { openAddProduct($('#q').value.trim(), true); return; }
   const b = e.target.closest('.prod'); if (!b) return;
   addToCart(catalog.items[+b.dataset.i]);
 });
@@ -496,9 +507,12 @@ $('#hBody').addEventListener('click', e => {
 function renderCatalog() {
   const its = catalog.items;
   $('#catTitle').textContent = `Catálogo (${its.length} productos)`;
-  $('#catInfo').textContent = catalog.loadedAt ? `${catalog.file} · cargado ${new Date(catalog.loadedAt).toLocaleString('es-MX')}` : 'Sin catálogo';
-  $('#catBody').innerHTML = its.length ? its.slice(0, 500).map(it => `<tr><td>${esc(it.code)}</td><td>${esc(it.desc)}</td><td class="n">${money(it.price)}</td></tr>`).join('')
-    + (its.length > 500 ? `<tr><td colspan="3" class="hint">… y ${its.length-500} más</td></tr>` : '') : `<tr><td colspan="3" class="empty">Carga un archivo de Excel para empezar</td></tr>`;
+  const nMan = its.filter(it => it.manual).length;
+  $('#catInfo').textContent = (catalog.loadedAt ? `${catalog.file || 'Sin archivo'} · cargado ${new Date(catalog.loadedAt).toLocaleString('es-MX')}` : 'Sin archivo cargado') + (nMan ? ` · ${nMan} agregado${nMan===1?'':'s'} manualmente` : '');
+  const list = its.map((it, i) => ({it, i})).sort((a, b) => (b.it.manual ? 1 : 0) - (a.it.manual ? 1 : 0));
+  $('#catBody').innerHTML = its.length ? list.slice(0, 500).map(({it, i}) => `<tr><td>${esc(it.code)}</td><td>${esc(it.desc)} ${it.manual ? '<span class="tag m">Manual</span>' : ''}</td><td class="n">${money(it.price)}</td>
+      <td class="n">${it.manual ? `<button class="linkbtn red" data-del="${i}">Quitar</button>` : ''}</td></tr>`).join('')
+    + (its.length > 500 ? `<tr><td colspan="4" class="hint">… y ${its.length-500} más</td></tr>` : '') : `<tr><td colspan="4" class="empty">Carga un archivo de Excel o agrega productos manualmente</td></tr>`;
 }
 $('#btnLoadCat').onclick = () => $('#fileCat').click();
 $('#fileCat').onchange = async e => {
@@ -508,9 +522,12 @@ $('#fileCat').onchange = async e => {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1, raw: true, defval: ''});
     const {items, skipped} = parseCatalog(rows);
     if (!items.length) { alert('No se encontraron productos. Revisa que el archivo tenga las columnas Código, Descripción y Precio.'); return; }
-    confirmBox(`¿Reemplazar el catálogo?`, `Se cargarán ${items.length} productos desde “${f.name}”.${skipped ? ` Se omitieron ${skipped} filas sin código o precio válido.` : ''}`, 'Cargar', () => {
-      catalog = {items, file: f.name, loadedAt: new Date().toISOString()};
-      save(K.cat, catalog); buildIndex(); renderCatalog(); renderResults(); toast(`Catálogo cargado: ${items.length} productos`);
+    const codes = new Set(items.map(it => it.code));
+    const keep = catalog.items.filter(it => it.manual && !codes.has(it.code));
+    const dup = catalog.items.filter(it => it.manual && codes.has(it.code)).length;
+    confirmBox(`¿Reemplazar el catálogo?`, `Se cargarán ${items.length} productos desde “${f.name}”.${skipped ? ` Se omitieron ${skipped} filas sin código o precio válido.` : ''}${keep.length ? ` Se conservan ${keep.length} productos agregados manualmente.` : ''}${dup ? ` ${dup} producto(s) manual(es) ya vienen en el archivo y se tomará el del archivo.` : ''}`, 'Cargar', () => {
+      catalog = {items: items.concat(keep), file: f.name, loadedAt: new Date().toISOString()};
+      save(K.cat, catalog); buildIndex(); renderCatalog(); renderResults(); toast(`Catálogo cargado: ${catalog.items.length} productos`);
     });
   } catch (err) { alert('No se pudo leer el archivo: ' + err.message); }
 };
@@ -539,6 +556,46 @@ $('#btnTpl').onclick = () => {
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Catalogo');
   deliverWorkbook(wb, 'Plantilla_Catalogo.xlsx');
 };
+
+/* ---------- Alta manual de productos ---------- */
+$('#btnAddProd').onclick = () => openAddProduct('', false);
+$('#catBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]'); if (!b) return;
+  const it = catalog.items[+b.dataset.del];
+  confirmBox(`¿Quitar “${it.desc}” del catálogo?`, 'Las ventas ya registradas con este producto no se modifican.', 'Quitar', () => {
+    catalog.items.splice(+b.dataset.del, 1); save(K.cat, catalog); buildIndex(); renderCatalog(); renderResults(); toast('Producto quitado');
+  });
+});
+function openAddProduct(text, fromSale) {
+  const looksCode = text && !/\s/.test(text) && /\d/.test(text);
+  $('#genSheet').innerHTML = `<h2>Agregar producto</h2>
+    <div class="sub">Se guarda en el catálogo de este iPad y queda disponible para siguientes ventas.</div>
+    <div class="field"><label for="npCode">Código</label><input id="npCode" autocomplete="off" autocapitalize="characters" value="${esc(looksCode ? text : '')}"></div>
+    <div class="field"><label for="npDesc">Descripción</label><input id="npDesc" autocomplete="off" value="${esc(looksCode ? '' : text)}"></div>
+    <div class="field"><label for="npPrice">Precio</label><input id="npPrice" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+    <label class="chk-row"><input type="checkbox" id="npCart" ${fromSale ? 'checked' : ''}> Agregarlo también a la venta actual</label>
+    <div class="err" id="npErr"></div>
+    <div class="actions"><button class="btn sec" id="gNo">Regresar</button><button class="btn" id="gYes">Guardar producto</button></div>`;
+  $('#mGen').classList.add('on');
+  setTimeout(() => (looksCode ? $('#npDesc') : (text ? $('#npPrice') : $('#npCode'))).focus(), 80);
+  $('#gNo').onclick = () => $('#mGen').classList.remove('on');
+  $('#gYes').onclick = () => {
+    const code = $('#npCode').value.trim(), desc = $('#npDesc').value.trim(), price = parseNum($('#npPrice').value);
+    const err = m => { $('#npErr').textContent = m; };
+    if (!code) return err('Escribe el código del producto.');
+    if (catalog.items.some(it => norm(it.code) === norm(code))) return err('Ya existe un producto con ese código.');
+    if (!desc) return err('Escribe la descripción.');
+    if (isNaN(price) || price < 0) return err('Escribe un precio válido, por ejemplo 45 o 38.50.');
+    const it = {code, desc, price: r2(price), manual: true, addedAt: new Date().toISOString()};
+    catalog.items.push(it);
+    if (!save(K.cat, catalog)) { catalog.items.pop(); return; }
+    buildIndex(); renderCatalog();
+    $('#mGen').classList.remove('on');
+    if ($('#npCart').checked) { addToCart(it); $('#q').value = ''; }
+    else toast('Producto agregado: ' + desc);
+    renderResults();
+  };
+}
 
 /* ---------- Reporte ---------- */
 function rangeSales() {
@@ -659,7 +716,15 @@ function updateHeader() { $('#hdrPlace').textContent = cfg.place ? '· ' + cfg.p
 
 /* ---------- Inicio ---------- */
 buildIndex(); updateHeader(); renderResults(); renderCart();
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(()=>{});
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(()=>{});
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('#upd').classList.add('on'); });
+  $('#updBtn').onclick = () => {
+    if (cart.length) { toast('Termina o vacía la venta actual antes de actualizar'); return; }
+    location.reload();
+  };
+}
 })();
 </script>
 </body>
