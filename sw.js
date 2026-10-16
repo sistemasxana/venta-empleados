@@ -1,5 +1,5 @@
 // Cambia VERSION cada vez que publiques una actualización para que el iPad la descargue.
-const VERSION = 'pos-v2';
+const VERSION = 'pos-v4';
 const FILES = ['./', './index.html', './xlsx.full.min.js', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
@@ -11,4 +11,3 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   e.respondWith(caches.match(e.request, {ignoreSearch: true}).then(r => r || fetch(e.request)));
 });
-

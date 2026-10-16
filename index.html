@@ -18,6 +18,7 @@
   --danger:#c2410c; --danger-soft:#fdeee6; --ok:#15803d;
   --radius:14px;
 }
+[hidden]{display:none!important}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
   font:16px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
@@ -236,7 +237,11 @@ tr.cancel td{color:var(--muted);text-decoration:line-through}
         </div>
         <div class="card">
           <h3>Configuración</h3>
-          <div class="field"><label>Lugar / evento de venta (aparece en cada venta y en el reporte)</label><input id="cfgPlace" placeholder="Ej. Planta Zapopan, Feria SESAJAL…"></div>
+          <div class="field"><label for="cfgDevice">Identificador de este iPad (va al inicio de cada folio, ej. A-00001)</label>
+            <div class="inline" id="devSet"><select id="cfgDevice" style="flex:1;min-width:160px"></select><button class="btn" id="btnDevice" style="margin:0">Asignar</button></div>
+            <div id="devFixed" hidden style="font-size:20px;font-weight:700"></div>
+            <span class="hint" id="cfgDeviceHint" style="margin:0"></span></div>
+          <div class="field"><label for="cfgPlace">Lugar / evento de venta (aparece en cada venta y en el reporte)</label><input id="cfgPlace" placeholder="Ej. Planta Zapopan, Feria SESAJAL…"></div>
         </div>
         <div class="card">
           <h3>Cerrar periodo</h3>
@@ -393,12 +398,24 @@ $('#btnClear').onclick = () => {
 };
 
 /* ---------- Folios ---------- */
-function nextFolioPreview() { return pad((load(K.seq, 0)) + 1, 5); }
-function takeFolio() { const n = load(K.seq, 0) + 1; save(K.seq, n); return pad(n, 5); }
-
+const DEVICES = ['A','B','C','D','E','F','G','H'];
+const devPrefix = () => cfg.device ? cfg.device + '-' : '';
+function nextFolioPreview() { return devPrefix() + pad((load(K.seq, 0)) + 1, 5); }
+function takeFolio() { const n = load(K.seq, 0) + 1; save(K.seq, n); return devPrefix() + pad(n, 5); }
+function setDevice(d) {
+  cfg.device = d; save(K.cfg, cfg); updateHeader(); renderCart();
+}
+function noDeviceNotice() {
+  $('#genSheet').innerHTML = `<h2>Este iPad no está configurado</h2>
+    <div class="sub">Falta asignarle su letra de identificación. Pide a Sistemas que la asigne antes de registrar ventas.</div>
+    <div class="actions"><button class="btn" id="gNo">Entendido</button></div>`;
+  $('#mGen').classList.add('on');
+  $('#gNo').onclick = () => $('#mGen').classList.remove('on');
+}
 /* ---------- Cobro ---------- */
 let pay = {method: 'Efectivo', received: ''};
-$('#btnPay').onclick = () => { pay = {method: 'Efectivo', received: ''}; renderPay(); $('#mPay').classList.add('on'); };
+function openPay() { pay = {method: 'Efectivo', received: ''}; renderPay(); $('#mPay').classList.add('on'); }
+$('#btnPay').onclick = () => { if (!cfg.device) noDeviceNotice(); else openPay(); };
 function billOptions(total) {
   const bills = [20, 50, 100, 200, 500, 1000];
   const opts = new Set();
@@ -451,7 +468,7 @@ function finishSale() {
   const now = new Date();
   const sale = {
     folio: takeFolio(), ts: now.toISOString(), date: dKey(now), time: hhmm(now),
-    place: cfg.place || '', method: pay.method,
+    device: cfg.device || '', place: cfg.place || '', method: pay.method,
     items: cart.map(l => ({code: l.code, desc: l.desc, price: l.price, qty: l.qty, amount: r2(l.price * l.qty)})),
     total, received: r2(recv), change: isCash ? r2(recv - total) : 0, status: 'OK'
   };
@@ -606,6 +623,12 @@ function renderReport() {
   if (!$('#rFrom').value) { const d = dKey(new Date()); $('#rFrom').value = d; $('#rTo').value = d; }
   $('#rStats').innerHTML = statsHTML(summarize(rangeSales()));
   $('#cfgPlace').value = cfg.place || '';
+  const sel = $('#cfgDevice');
+  if (!sel.options.length) sel.innerHTML = `<option value="">— Elige la letra —</option>` + DEVICES.map(d => `<option value="${d}">iPad ${d}</option>`).join('');
+  $('#devSet').hidden = !!cfg.device;
+  $('#devFixed').hidden = !cfg.device;
+  $('#devFixed').textContent = cfg.device ? 'iPad ' + cfg.device : '';
+  $('#cfgDeviceHint').textContent = cfg.device ? 'Asignado. No se puede cambiar.' : 'Se asigna una sola vez y después ya no se puede cambiar.';
   let bytes = 0; try { for (const k of Object.values(K)) bytes += (localStorage.getItem(k) || '').length; } catch {}
   const dates = sales.map(s => s.date).sort();
   $('#storeInfo').textContent = `En este iPad: ${sales.length} ventas guardadas${dates.length ? ` (del ${dates[0]} al ${dates[dates.length-1]})` : ''} · ${(bytes/1024).toFixed(0)} KB usados`;
@@ -614,6 +637,14 @@ $('#rFrom').onchange = $('#rTo').onchange = renderReport;
 $('#btnAll').onclick = () => {
   const dates = sales.map(s => s.date).sort();
   $('#rFrom').value = dates[0] || ''; $('#rTo').value = dates[dates.length-1] || ''; renderReport();
+};
+$('#btnDevice').onclick = () => {
+  if (cfg.device) return;
+  const d = $('#cfgDevice').value;
+  if (!d) { toast('Elige la letra de este iPad'); return; }
+  confirmBox(`¿Asignar la letra ${d} a este iPad?`, `Los folios quedarán como ${d}-00001, ${d}-00002… Una vez asignada no se puede cambiar.`, 'Asignar', () => {
+    setDevice(d); renderReport(); toast('Este iPad quedó como iPad ' + d);
+  });
 };
 $('#cfgPlace').onchange = () => { cfg.place = $('#cfgPlace').value.trim(); save(K.cfg, cfg); updateHeader(); toast('Lugar guardado'); };
 
@@ -629,23 +660,24 @@ $('#btnExport').onclick = () => {
     ['Reporte de venta a empleados'], [],
     ['Periodo', `${$('#rFrom').value || '—'} a ${$('#rTo').value || '—'}`],
     ['Generado', new Date().toLocaleString('es-MX')],
+    ['iPad', [...new Set(list.map(s => s.device).filter(Boolean))].join(', ') || '—'],
     ['Lugares', [...new Set(list.map(s => s.place).filter(Boolean))].join(', ') || '—'], [],
     ['Ventas registradas', sm.count], ['Ventas canceladas', sm.canceled], ['Total vendido', sm.total], [],
     ['Forma de pago', 'Ventas', 'Importe'],
     ...METHODS.map(m => [m, ok.filter(s => s.method === m).length, sm.by[m] || 0]),
     ['TOTAL', sm.count, sm.total]
   ];
-  addSheet(wb, 'Resumen', res, [{wch:24},{wch:28},{wch:14}], [8, 11, 12, 13, 14]);
+  addSheet(wb, 'Resumen', res, [{wch:24},{wch:28},{wch:14}], [9, 12, 13, 14, 15]);
 
   // Detalle por artículo
-  const det = [['Folio','Fecha','Hora','Lugar','Código','Descripción','Cantidad','Precio unitario','Importe','Forma de pago','Estatus']];
-  list.forEach(s => s.items.forEach(i => det.push([s.folio, s.date, s.time, s.place, i.code, i.desc, i.qty, i.price, i.amount, s.method, s.status])));
-  addSheet(wb, 'Detalle', det, [{wch:8},{wch:11},{wch:7},{wch:18},{wch:14},{wch:40},{wch:9},{wch:13},{wch:12},{wch:14},{wch:11}], null, [7, 8]);
+  const det = [['Folio','iPad','Fecha','Hora','Lugar','Código','Descripción','Cantidad','Precio unitario','Importe','Forma de pago','Estatus']];
+  list.forEach(s => s.items.forEach(i => det.push([s.folio, s.device || '', s.date, s.time, s.place, i.code, i.desc, i.qty, i.price, i.amount, s.method, s.status])));
+  addSheet(wb, 'Detalle', det, [{wch:10},{wch:6},{wch:11},{wch:7},{wch:18},{wch:14},{wch:40},{wch:9},{wch:13},{wch:12},{wch:14},{wch:11}], null, [8, 9]);
 
   // Ventas
-  const vt = [['Folio','Fecha','Hora','Lugar','Artículos','Total','Forma de pago','Recibido','Cambio','Estatus']];
-  list.forEach(s => vt.push([s.folio, s.date, s.time, s.place, s.items.reduce((a,i)=>a+i.qty,0), s.total, s.method, s.received, s.change, s.status]));
-  addSheet(wb, 'Ventas', vt, [{wch:8},{wch:11},{wch:7},{wch:18},{wch:10},{wch:12},{wch:14},{wch:12},{wch:10},{wch:11}], null, [5, 7, 8]);
+  const vt = [['Folio','iPad','Fecha','Hora','Lugar','Artículos','Total','Forma de pago','Recibido','Cambio','Estatus']];
+  list.forEach(s => vt.push([s.folio, s.device || '', s.date, s.time, s.place, s.items.reduce((a,i)=>a+i.qty,0), s.total, s.method, s.received, s.change, s.status]));
+  addSheet(wb, 'Ventas', vt, [{wch:10},{wch:6},{wch:11},{wch:7},{wch:18},{wch:10},{wch:12},{wch:14},{wch:12},{wch:10},{wch:11}], null, [6, 8, 9]);
 
   // Por producto
   const agg = new Map();
@@ -659,7 +691,7 @@ $('#btnExport').onclick = () => {
   addSheet(wb, 'Por producto', pr, [{wch:14},{wch:40},{wch:16},{wch:14}], null, [3]);
 
   const a = $('#rFrom').value, b = $('#rTo').value;
-  deliverWorkbook(wb, `Ventas_Empleados_${a}${b && b !== a ? '_a_' + b : ''}.xlsx`);
+  deliverWorkbook(wb, `Ventas_Empleados_${cfg.device ? cfg.device + '_' : ''}${a}${b && b !== a ? '_a_' + b : ''}.xlsx`);
 };
 function addSheet(wb, name, aoa, cols, moneyRows, moneyCols) {
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -693,7 +725,7 @@ $('#btnWipe').onclick = () => {
   $('#genSheet').innerHTML = `<h2>Borrar ${sales.length} ventas</h2>
     <div class="sub">Total ${money(tot.total)}. Esta acción no se puede deshacer. Escribe <b>BORRAR</b> para confirmar.</div>
     <div class="field"><input id="wipeTxt" autocapitalize="characters" autocomplete="off"></div>
-    <label style="display:flex;gap:8px;align-items:center;margin-bottom:16px"><input type="checkbox" id="wipeSeq"> Reiniciar folios a 00001</label>
+    <label style="display:flex;gap:8px;align-items:center;margin-bottom:16px"><input type="checkbox" id="wipeSeq"> Reiniciar folios a ${devPrefix()}00001</label>
     <div class="actions"><button class="btn sec" id="gNo">Regresar</button><button class="btn danger" id="gYes">Borrar</button></div>`;
   $('#mGen').classList.add('on');
   $('#gNo').onclick = () => $('#mGen').classList.remove('on');
@@ -712,7 +744,7 @@ function confirmBox(title, sub, okText, fn) {
   $('#gNo').onclick = () => $('#mGen').classList.remove('on');
   $('#gYes').onclick = () => { $('#mGen').classList.remove('on'); fn(); };
 }
-function updateHeader() { $('#hdrPlace').textContent = cfg.place ? '· ' + cfg.place : ''; }
+function updateHeader() { $('#hdrPlace').textContent = [cfg.device ? 'iPad ' + cfg.device : '', cfg.place].filter(Boolean).map(x => '· ' + x).join(' '); }
 
 /* ---------- Inicio ---------- */
 buildIndex(); updateHeader(); renderResults(); renderCart();
