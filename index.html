@@ -88,6 +88,19 @@ main{flex:1;min-height:0;display:flex}
 .methods{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
 .methods button{padding:18px 8px;border-radius:var(--radius);border:2px solid var(--line);font-weight:700;font-size:17px;background:var(--panel)}
 .methods button.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+.methods.m4{grid-template-columns:repeat(4,1fr)}
+.methods.m4 button{font-size:15px;padding:16px 6px}
+.combo{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;background:var(--bg);border-radius:var(--radius);padding:12px}
+.crow{display:grid;grid-template-columns:62px 1fr 130px;gap:8px;align-items:center}
+.clbl{font-weight:700;font-size:14px;color:var(--muted)}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{padding:10px 12px;border-radius:10px;background:var(--panel);border:2px solid var(--line);font-weight:600;font-size:14px}
+.seg button.on{border-color:var(--brand);color:var(--brand);background:var(--brand-soft)}
+.crow input{width:100%;padding:10px 12px;font-size:20px;font-weight:700;text-align:right;border:2px solid var(--line);border-radius:10px;outline:none;-webkit-user-select:text;user-select:text}
+.crow input:focus{border-color:var(--brand)}
+.camt{font-size:20px;text-align:right;padding-right:12px}
+.combo .err{margin:0;min-height:0}
+@media (max-width:620px){.methods.m4{grid-template-columns:repeat(2,1fr)}.crow{grid-template-columns:1fr}.camt{text-align:left}}
 .cash{display:none}
 .cash.on{display:block}
 .bills{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
@@ -413,8 +426,8 @@ function noDeviceNotice() {
   $('#gNo').onclick = () => $('#mGen').classList.remove('on');
 }
 /* ---------- Cobro ---------- */
-let pay = {method: 'Efectivo', received: ''};
-function openPay() { pay = {method: 'Efectivo', received: ''}; renderPay(); $('#mPay').classList.add('on'); }
+let pay = {method: 'Efectivo', received: '', m1: 'Efectivo', a1: '', m2: 'Tarjeta'};
+function openPay() { pay = {method: 'Efectivo', received: '', m1: 'Efectivo', a1: '', m2: 'Tarjeta'}; renderPay(); $('#mPay').classList.add('on'); }
 $('#btnPay').onclick = () => { if (!cfg.device) noDeviceNotice(); else openPay(); };
 function billOptions(total) {
   const bills = [20, 50, 100, 200, 500, 1000];
@@ -422,21 +435,42 @@ function billOptions(total) {
   for (const b of bills) { const v = Math.ceil(total / b) * b; if (v >= total) opts.add(v); }
   return [...opts].filter(v => v > total).sort((a, b) => a - b).slice(0, 7);
 }
-function payRecv() { return parseFloat(String(pay.received).replace(/[^0-9.]/g, '')) || 0; }
+const COMBO = 'Combinado';
+const num = v => parseFloat(String(v ?? '').replace(/[^0-9.]/g, '')) || 0;
+function payRecv() { return num(pay.received); }
+function payParts() {
+  const total = cartTotal();
+  if (pay.method !== COMBO) return [{method: pay.method, amount: total}];
+  const a1 = r2(num(pay.a1));
+  if (!(a1 > 0 && a1 < total)) return null;
+  return [{method: pay.m1, amount: a1}, {method: pay.m2, amount: r2(total - a1)}];
+}
+function cashDue() {
+  const parts = payParts(); if (!parts) return 0;
+  return r2(parts.filter(x => x.method === 'Efectivo').reduce((a, x) => a + x.amount, 0));
+}
+const segBtns = (attr, cur, skip) => METHODS.filter(m => m !== skip).map(m => `<button data-${attr}="${m}" class="${m===cur?'on':''}">${m}</button>`).join('');
 function renderPay() {
   const total = cartTotal();
-  const isCash = pay.method === 'Efectivo';
+  const combo = pay.method === COMBO;
+  if (combo && pay.m1 === pay.m2) pay.m2 = METHODS.find(m => m !== pay.m1);
   $('#paySheet').innerHTML = `
     <h2>Cobrar</h2>
     <div class="sub">${cart.reduce((s,l)=>s+l.qty,0)} artículos · Folio ${nextFolioPreview()}</div>
     <div class="pay-total"><span>Total a pagar</span><b>${money(total)}</b></div>
-    <div class="methods">${METHODS.map(m => `<button data-m="${m}" class="${m===pay.method?'on':''}">${m}</button>`).join('')}</div>
-    <div class="cash ${isCash?'on':''}">
-      <div class="bills">
-        <button class="exact" data-b="${total}">Exacto</button>
-        ${billOptions(total).map(v => `<button data-b="${v}">${money(v).replace('.00','')}</button>`).join('')}
-      </div>
-      <div class="recv"><label>Recibido</label><input id="recv" inputmode="decimal" placeholder="0.00" value="${esc(pay.received)}"></div>
+    <div class="methods m4">${METHODS.concat(COMBO).map(m => `<button data-m="${m}" class="${m===pay.method?'on':''}">${m === COMBO ? 'Combinar 2 pagos' : m}</button>`).join('')}</div>
+    ${combo ? `
+    <div class="combo">
+      <div class="crow"><span class="clbl">Pago 1</span><div class="seg">${segBtns('m1', pay.m1)}</div>
+        <input id="a1" inputmode="decimal" placeholder="Monto" value="${esc(pay.a1)}"></div>
+      <div class="crow"><span class="clbl">Pago 2</span><div class="seg">${segBtns('m2', pay.m2, pay.m1)}</div>
+        <b class="camt" id="a2">—</b></div>
+      <div class="err" id="comboErr"></div>
+    </div>` : ''}
+    <div class="cash" id="cashBox">
+      <div class="hint" id="cashLbl" style="margin:0 0 8px"></div>
+      <div class="bills" id="billsBox"></div>
+      <div class="recv"><label for="recv">Recibido</label><input id="recv" inputmode="decimal" placeholder="0.00" value="${esc(pay.received)}"></div>
       <div class="change" id="chgBox"><span id="chgLbl">Cambio</span><b id="chgVal">—</b></div>
     </div>
     <div class="actions">
@@ -444,33 +478,53 @@ function renderPay() {
       <button class="btn" id="payOk">Registrar venta</button>
     </div>`;
   $('#recv').oninput = () => { pay.received = $('#recv').value; updateChange(); };
+  if (combo) $('#a1').oninput = () => { pay.a1 = $('#a1').value; updateChange(); };
+  pay._due = null;
   updateChange();
 }
 function updateChange() {
-  const total = cartTotal(), recv = payRecv(), change = r2(recv - total);
-  const isCash = pay.method === 'Efectivo';
+  const total = cartTotal(), combo = pay.method === COMBO;
+  const parts = payParts(), due = cashDue();
+  if (combo) {
+    $('#a2').textContent = parts ? money(parts[1].amount) : '—';
+    $('#comboErr').textContent = pay.a1 && !parts ? `El monto del pago 1 debe ser mayor a $0 y menor a ${money(total)}.` : '';
+  }
+  const showCash = due > 0;
+  $('#cashBox').classList.toggle('on', showCash);
+  if (showCash && pay._due !== due) {
+    pay._due = due;
+    $('#cashLbl').textContent = combo ? `Parte en efectivo: ${money(due)}` : '';
+    $('#billsBox').innerHTML = `<button class="exact" data-b="${due}">Exacto</button>` + billOptions(due).map(v => `<button data-b="${v}">${money(v).replace('.00','')}</button>`).join('');
+  }
+  const recv = payRecv(), change = r2(recv - due);
   const short = recv > 0 && change < 0;
   $('#chgBox').classList.toggle('short', short);
   $('#chgLbl').textContent = short ? 'Falta' : 'Cambio';
   $('#chgVal').textContent = recv ? money(Math.abs(change)) : '—';
-  $('#payOk').disabled = isCash && recv < total;
+  $('#payOk').disabled = !parts || (showCash && recv < due);
 }
 $('#paySheet').addEventListener('click', e => {
   const m = e.target.closest('[data-m]'); if (m) { pay.method = m.dataset.m; renderPay(); return; }
-  const b = e.target.closest('[data-b]'); if (b) { pay.received = String(b.dataset.b); renderPay(); return; }
+  const m1 = e.target.closest('[data-m1]'); if (m1) { pay.m1 = m1.dataset.m1; renderPay(); return; }
+  const m2 = e.target.closest('[data-m2]'); if (m2) { pay.m2 = m2.dataset.m2; renderPay(); return; }
+  const b = e.target.closest('[data-b]'); if (b) { pay.received = String(b.dataset.b); $('#recv').value = pay.received; updateChange(); return; }
   if (e.target.id === 'payCancel') { $('#mPay').classList.remove('on'); return; }
   if (e.target.id === 'payOk') finishSale();
 });
+function salePayments(s) { return s.payments || [{method: s.method, amount: s.total}]; }
+function methodLabel(s, sep = ' + ') { const p = salePayments(s); return p.length > 1 ? p.map(x => `${x.method} ${money(x.amount)}`).join(sep) : s.method; }
 function finishSale() {
   const total = cartTotal();
-  const isCash = pay.method === 'Efectivo';
-  const recv = isCash ? payRecv() : total;
+  const parts = payParts(); if (!parts) return;
+  const due = cashDue(), hasCash = due > 0;
+  const recv = hasCash ? payRecv() : total;
   const now = new Date();
   const sale = {
     folio: takeFolio(), ts: now.toISOString(), date: dKey(now), time: hhmm(now),
-    device: cfg.device || '', place: cfg.place || '', method: pay.method,
+    device: cfg.device || '', place: cfg.place || '',
+    method: parts.length > 1 ? COMBO : parts[0].method, payments: parts,
     items: cart.map(l => ({code: l.code, desc: l.desc, price: l.price, qty: l.qty, amount: r2(l.price * l.qty)})),
-    total, received: r2(recv), change: isCash ? r2(recv - total) : 0, status: 'OK'
+    total, received: r2(recv), change: hasCash ? r2(recv - due) : 0, status: 'OK'
   };
   sales.push(sale);
   if (!save(K.sales, sales)) { sales.pop(); return; }
@@ -479,8 +533,8 @@ function finishSale() {
     <div class="done">
       <div class="chk">✓</div>
       <h2>Venta registrada · Folio ${sale.folio}</h2>
-      <div class="sub">${sale.method} · Total ${money(sale.total)}</div>
-      ${isCash ? `<div>Cambio a entregar</div><div class="chg">${money(sale.change)}</div>` : '<div style="height:14px"></div>'}
+      <div class="sub">${esc(methodLabel(sale))} · Total ${money(sale.total)}</div>
+      ${hasCash ? `<div>Cambio a entregar</div><div class="chg">${money(sale.change)}</div>` : '<div style="height:14px"></div>'}
       <button class="btn" id="payNew">Nueva venta</button>
     </div>`;
   $('#payNew').onclick = () => { $('#mPay').classList.remove('on'); $('#q').value=''; renderResults(); $('#q').focus(); };
@@ -492,7 +546,7 @@ $('#hDate').onchange = renderHistory;
 function summarize(list) {
   const ok = list.filter(s => s.status === 'OK');
   const by = Object.fromEntries(METHODS.map(m => [m, 0]));
-  ok.forEach(s => by[s.method] = r2((by[s.method] || 0) + s.total));
+  ok.forEach(s => salePayments(s).forEach(x => by[x.method] = r2((by[x.method] || 0) + x.amount)));
   return {count: ok.length, total: r2(ok.reduce((a, s) => a + s.total, 0)), by, canceled: list.length - ok.length};
 }
 function statsHTML(sm) {
@@ -508,14 +562,14 @@ function renderHistory() {
     <tr class="${s.status!=='OK'?'cancel':''}">
       <td>${s.folio}</td><td>${s.time}</td>
       <td>${s.items.map(i => `${i.qty}× ${esc(i.desc)}`).join('<br>')}</td>
-      <td>${s.method}</td><td class="n">${money(s.total)}</td>
+      <td>${esc(methodLabel(s, '<br>')).replace(/&lt;br&gt;/g, '<br>')}</td><td class="n">${money(s.total)}</td>
       <td class="n">${s.status==='OK' ? `<button class="linkbtn red" data-f="${s.folio}">Cancelar</button>` : '<span class="tag x">Cancelada</span>'}</td>
     </tr>`).join('') : `<tr><td colspan="6" class="empty">Sin ventas en esta fecha</td></tr>`;
 }
 $('#hBody').addEventListener('click', e => {
   const b = e.target.closest('[data-f]'); if (!b) return;
   const s = sales.find(x => x.folio === b.dataset.f);
-  confirmBox(`¿Cancelar la venta ${s.folio}?`, `${money(s.total)} · ${s.method}. Quedará en el reporte marcada como cancelada.`, 'Cancelar venta', () => {
+  confirmBox(`¿Cancelar la venta ${s.folio}?`, `${money(s.total)} · ${methodLabel(s)}. Quedará en el reporte marcada como cancelada.`, 'Cancelar venta', () => {
     s.status = 'CANCELADA'; s.canceledAt = new Date().toISOString(); save(K.sales, sales); renderHistory(); toast('Venta ' + s.folio + ' cancelada');
   });
 });
@@ -664,20 +718,24 @@ $('#btnExport').onclick = () => {
     ['Lugares', [...new Set(list.map(s => s.place).filter(Boolean))].join(', ') || '—'], [],
     ['Ventas registradas', sm.count], ['Ventas canceladas', sm.canceled], ['Total vendido', sm.total], [],
     ['Forma de pago', 'Ventas', 'Importe'],
-    ...METHODS.map(m => [m, ok.filter(s => s.method === m).length, sm.by[m] || 0]),
-    ['TOTAL', sm.count, sm.total]
+    ...METHODS.map(m => [m, ok.filter(s => salePayments(s).some(x => x.method === m)).length, sm.by[m] || 0]),
+    ['TOTAL', sm.count, sm.total], [],
+    ['Ventas con pago combinado', ok.filter(s => salePayments(s).length > 1).length, '(ya incluidas arriba en cada forma de pago)']
   ];
   addSheet(wb, 'Resumen', res, [{wch:24},{wch:28},{wch:14}], [9, 12, 13, 14, 15]);
 
   // Detalle por artículo
   const det = [['Folio','iPad','Fecha','Hora','Lugar','Código','Descripción','Cantidad','Precio unitario','Importe','Forma de pago','Estatus']];
-  list.forEach(s => s.items.forEach(i => det.push([s.folio, s.device || '', s.date, s.time, s.place, i.code, i.desc, i.qty, i.price, i.amount, s.method, s.status])));
-  addSheet(wb, 'Detalle', det, [{wch:10},{wch:6},{wch:11},{wch:7},{wch:18},{wch:14},{wch:40},{wch:9},{wch:13},{wch:12},{wch:14},{wch:11}], null, [8, 9]);
+  list.forEach(s => s.items.forEach(i => det.push([s.folio, s.device || '', s.date, s.time, s.place, i.code, i.desc, i.qty, i.price, i.amount, methodLabel(s), s.status])));
+  addSheet(wb, 'Detalle', det, [{wch:10},{wch:6},{wch:11},{wch:7},{wch:18},{wch:14},{wch:40},{wch:9},{wch:13},{wch:12},{wch:32},{wch:11}], null, [8, 9]);
 
   // Ventas
-  const vt = [['Folio','iPad','Fecha','Hora','Lugar','Artículos','Total','Forma de pago','Recibido','Cambio','Estatus']];
-  list.forEach(s => vt.push([s.folio, s.device || '', s.date, s.time, s.place, s.items.reduce((a,i)=>a+i.qty,0), s.total, s.method, s.received, s.change, s.status]));
-  addSheet(wb, 'Ventas', vt, [{wch:10},{wch:6},{wch:11},{wch:7},{wch:18},{wch:10},{wch:12},{wch:14},{wch:12},{wch:10},{wch:11}], null, [6, 8, 9]);
+  const vt = [['Folio','iPad','Fecha','Hora','Lugar','Artículos','Total','Forma de pago','Efectivo','Tarjeta','Transferencia','Efectivo recibido','Cambio','Estatus']];
+  list.forEach(s => {
+    const pm = m => r2(salePayments(s).filter(x => x.method === m).reduce((a, x) => a + x.amount, 0));
+    vt.push([s.folio, s.device || '', s.date, s.time, s.place, s.items.reduce((a,i)=>a+i.qty,0), s.total, s.method, pm('Efectivo'), pm('Tarjeta'), pm('Transferencia'), pm('Efectivo') > 0 ? s.received : 0, s.change, s.status]);
+  });
+  addSheet(wb, 'Ventas', vt, [{wch:10},{wch:6},{wch:11},{wch:7},{wch:18},{wch:10},{wch:12},{wch:14},{wch:12},{wch:12},{wch:13},{wch:15},{wch:10},{wch:11}], null, [6, 8, 9, 10, 11, 12]);
 
   // Por producto
   const agg = new Map();
