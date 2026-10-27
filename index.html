@@ -101,6 +101,21 @@ main{flex:1;min-height:0;display:flex}
 .camt{font-size:20px;text-align:right;padding-right:12px}
 .combo .err{margin:0;min-height:0}
 @media (max-width:620px){.methods.m4{grid-template-columns:repeat(2,1fr)}.crow{grid-template-columns:1fr}.camt{text-align:left}}
+.listbar{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.listbar span{font-weight:600;color:var(--muted);font-size:14px}
+.listpill{padding:10px 16px;border-radius:999px;background:var(--brand);color:#fff;font-weight:700;font-size:16px}
+.listpill.none{background:var(--danger)}
+.lrow{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.lrow:last-child{border-bottom:0}
+.lrow .ln{font-weight:700;font-size:17px}
+.lrow .lm{color:var(--muted);font-size:13px}
+.lrow .la{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.lrow.view{background:var(--brand-soft);margin:0 -10px;padding:12px 10px;border-radius:10px}
+.pinin{font-size:32px;letter-spacing:.4em;text-align:center}
+.lpick{display:grid;gap:10px;margin-bottom:16px}
+.lpick button{padding:18px;border-radius:var(--radius);border:2px solid var(--line);text-align:left;font-weight:700;font-size:18px;background:var(--panel);display:flex;justify-content:space-between;align-items:center}
+.lpick button.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+.lpick small{font-weight:500;color:var(--muted);font-size:13px}
 .cash{display:none}
 .cash.on{display:block}
 .bills{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
@@ -181,6 +196,7 @@ tr.cancel td{color:var(--muted);text-decoration:line-through}
     <!-- ========== VENTA ========== -->
     <section class="view on" id="v-venta">
       <div class="left">
+        <div class="listbar"><span>Lista de precios:</span><button class="listpill" id="btnList">—</button></div>
         <div class="search">
           <input id="q" type="search" placeholder="Buscar por código o descripción…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
           <button class="clr" id="qClr" aria-label="Limpiar">×</button>
@@ -217,15 +233,18 @@ tr.cancel td{color:var(--muted);text-decoration:line-through}
     <section class="view" id="v-catalogo">
       <div class="pane">
         <div class="card">
-          <h3>Cargar catálogo desde Excel</h3>
-          <p>El archivo debe tener tres columnas: <b>Código</b>, <b>Descripción</b> y <b>Precio</b> (primera hoja, con encabezados en la primera fila). Al cargar se reemplaza el catálogo actual; las ventas ya registradas no se modifican.</p>
+          <div class="inline" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+            <h3 style="margin:0">Listas de precios</h3>
+            <button class="btn" id="btnNewList" style="margin:0">+ Nueva lista</button>
+          </div>
+          <p>Cada lista se carga desde un Excel con columnas <b>Código</b>, <b>Descripción</b> y <b>Precio</b> (primera hoja, encabezados en la primera fila). Crear, cargar, renombrar, eliminar o cambiar la lista en uso pide el NIP de administrador.</p>
+          <div id="listsBody"></div>
           <input type="file" id="fileCat" accept=".xlsx,.xls,.csv" hidden>
-          <button class="btn" id="btnLoadCat">Seleccionar archivo Excel</button>
-          <button class="btn sec" id="btnTpl">Descargar plantilla</button>
+          <button class="btn sec" id="btnTpl" style="margin-top:10px">Descargar plantilla</button>
         </div>
         <div class="card">
           <div class="inline" style="justify-content:space-between;align-items:center;margin-bottom:8px">
-            <h3 id="catTitle" style="margin:0">Catálogo</h3>
+            <h3 id="catTitle" style="margin:0">Productos</h3>
             <button class="btn" id="btnAddProd" style="margin:0">+ Agregar producto</button>
           </div>
           <p class="hint" id="catInfo" style="margin:0 0 8px"></p>
@@ -250,6 +269,9 @@ tr.cancel td{color:var(--muted);text-decoration:line-through}
         </div>
         <div class="card">
           <h3>Configuración</h3>
+          <div class="field"><label>NIP de administrador</label>
+            <div class="inline" style="align-items:center"><span id="pinState" style="font-weight:700"></span><button class="btn sec" id="btnPin" style="margin:0"></button></div>
+            <span class="hint" style="margin:0">Se guarda solo en este iPad. Lo piden: cambiar de lista de precios, cargar o modificar listas, agregar o quitar productos y borrar ventas.</span></div>
           <div class="field"><label for="cfgDevice">Identificador de este iPad (va al inicio de cada folio, ej. A-00001)</label>
             <div class="inline" id="devSet"><select id="cfgDevice" style="flex:1;min-width:160px"></select><button class="btn" id="btnDevice" style="margin:0">Asignar</button></div>
             <div id="devFixed" hidden style="font-size:20px;font-weight:700"></div>
@@ -292,11 +314,31 @@ const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const METHODS = ['Efectivo', 'Tarjeta', 'Transferencia'];
 
 /* ---------- Almacenamiento local ---------- */
-const K = {cat:'pos.catalog', sales:'pos.sales', cfg:'pos.config', seq:'pos.seq'};
+const K = {cat:'pos.catalog', lists:'pos.lists', pin:'pos.pin', sales:'pos.sales', cfg:'pos.config', seq:'pos.seq'};
 const load = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { alert('No se pudo guardar en el iPad: ' + e.message); return false; } };
 
-let catalog = load(K.cat, {items:[], file:'', loadedAt:null});
+/* Listas de precios: {active, lists:[{id, name, items, file, loadedAt}]} */
+let store = load(K.lists, null);
+if (!store) {
+  const old = load(K.cat, null);
+  const lst = old && old.items && old.items.length ? [{id: 'l' + Date.now(), name: 'Lista actual', items: old.items, file: old.file || '', loadedAt: old.loadedAt || null}] : [];
+  store = {active: lst[0] ? lst[0].id : null, lists: lst};
+  save(K.lists, store);
+}
+const EMPTY_LIST = {id: null, name: '', items: [], file: '', loadedAt: null};
+let catalog = EMPTY_LIST;
+let catView = null;
+const getList = id => store.lists.find(l => l.id === id);
+function saveLists() { return save(K.lists, store); }
+function refreshCatalog() {
+  catalog = getList(store.active) || EMPTY_LIST;
+  if (!getList(catView)) catView = catalog.id || (store.lists[0] && store.lists[0].id) || null;
+  buildIndex();
+  const pill = $('#btnList');
+  pill.textContent = catalog.id ? catalog.name + ' ▾' : 'Sin lista ▾';
+  pill.classList.toggle('none', !catalog.id);
+}
 let sales = load(K.sales, []);
 let cfg = load(K.cfg, {place:''});
 let cart = []; // {code, desc, price, qty}
@@ -340,11 +382,12 @@ function renderResults() {
   $('#qClr').style.display = q ? 'block' : 'none';
   const box = $('#results');
   if (!catalog.items.length) {
-    box.innerHTML = `<div class="empty">No hay catálogo cargado.<br><br><button class="btn" style="width:auto;display:inline-block;padding:12px 20px" onclick="document.querySelector('[data-v=catalogo]').click()">Cargar catálogo</button></div>`;
+    box.innerHTML = `<div class="empty">${!store.lists.length ? 'No hay listas de precios cargadas.' : !catalog.id ? 'Elige la lista de precios con la que vas a vender.' : `La lista “${esc(catalog.name)}” no tiene productos.`}<br>
+      <button class="btn" onclick="document.querySelector(${catalog.id || !store.lists.length ? "'[data-v=catalogo]'" : "'#btnList'"}).click()">${catalog.id || !store.lists.length ? 'Ir a Catálogo' : 'Elegir lista'}</button></div>`;
     $('#qHint').textContent = ''; return;
   }
   const res = search(q);
-  $('#qHint').textContent = q ? `${res.length} resultado${res.length===1?'':'s'}` : `${catalog.items.length} productos en catálogo · toca un producto para agregarlo`;
+  $('#qHint').textContent = q ? `${res.length} resultado${res.length===1?'':'s'}` : `${catalog.items.length} productos en la lista ${catalog.name} · toca un producto para agregarlo`;
   box.innerHTML = res.length ? res.map((it, i) => `
     <button class="prod" data-i="${catalog.items.indexOf(it)}">
       <span class="code">${esc(it.code)}</span>
@@ -353,7 +396,7 @@ function renderResults() {
     </button>`).join('') : `<div class="empty">Sin resultados para “${esc(q)}”<br><button class="btn" id="addFromSearch">+ Agregar producto nuevo</button></div>`;
 }
 $('#results').addEventListener('click', e => {
-  if (e.target.id === 'addFromSearch') { openAddProduct($('#q').value.trim(), true); return; }
+  if (e.target.id === 'addFromSearch') { const t = $('#q').value.trim(); requirePin('Agregar producto', () => openAddProduct(t, true)); return; }
   const b = e.target.closest('.prod'); if (!b) return;
   addToCart(catalog.items[+b.dataset.i]);
 });
@@ -521,7 +564,7 @@ function finishSale() {
   const now = new Date();
   const sale = {
     folio: takeFolio(), ts: now.toISOString(), date: dKey(now), time: hhmm(now),
-    device: cfg.device || '', place: cfg.place || '',
+    device: cfg.device || '', place: cfg.place || '', priceList: catalog.name || '',
     method: parts.length > 1 ? COMBO : parts[0].method, payments: parts,
     items: cart.map(l => ({code: l.code, desc: l.desc, price: l.price, qty: l.qty, amount: r2(l.price * l.qty)})),
     total, received: r2(recv), change: hasCash ? r2(recv - due) : 0, status: 'OK'
@@ -560,7 +603,7 @@ function renderHistory() {
   $('#hStats').innerHTML = statsHTML(summarize(list));
   $('#hBody').innerHTML = list.length ? list.map(s => `
     <tr class="${s.status!=='OK'?'cancel':''}">
-      <td>${s.folio}</td><td>${s.time}</td>
+      <td>${s.folio}${s.priceList ? `<br><span class="tag">${esc(s.priceList)}</span>` : ''}</td><td>${s.time}</td>
       <td>${s.items.map(i => `${i.qty}× ${esc(i.desc)}`).join('<br>')}</td>
       <td>${esc(methodLabel(s, '<br>')).replace(/&lt;br&gt;/g, '<br>')}</td><td class="n">${money(s.total)}</td>
       <td class="n">${s.status==='OK' ? `<button class="linkbtn red" data-f="${s.folio}">Cancelar</button>` : '<span class="tag x">Cancelada</span>'}</td>
@@ -574,34 +617,108 @@ $('#hBody').addEventListener('click', e => {
   });
 });
 
-/* ---------- Catálogo ---------- */
+/* ---------- Catálogo / listas ---------- */
 function renderCatalog() {
-  const its = catalog.items;
-  $('#catTitle').textContent = `Catálogo (${its.length} productos)`;
+  refreshCatalog();
+  $('#listsBody').innerHTML = store.lists.length ? store.lists.map(l => `
+    <div class="lrow ${l.id === catView ? 'view' : ''}">
+      <div><div class="ln">${esc(l.name)} ${l.id === store.active ? '<span class="tag m">En uso</span>' : ''}</div>
+        <div class="lm">${l.items.length} productos · ${l.loadedAt ? `${esc(l.file || 'Sin archivo')} · ${new Date(l.loadedAt).toLocaleString('es-MX')}` : 'Sin Excel cargado'}</div></div>
+      <div class="la">
+        ${l.id !== catView ? `<button class="linkbtn" data-lv="${l.id}">Ver productos</button>` : ''}
+        <button class="linkbtn" data-ll="${l.id}">Cargar Excel</button>
+        <button class="linkbtn" data-lr="${l.id}">Renombrar</button>
+        <button class="linkbtn red" data-lx="${l.id}">Eliminar</button>
+      </div>
+    </div>`).join('') : `<div class="empty" style="padding:20px">Aún no hay listas. Crea la primera con “+ Nueva lista”.</div>`;
+  const vl = getList(catView);
+  const its = vl ? vl.items : [];
+  $('#catTitle').textContent = vl ? `Productos · ${vl.name} (${its.length})` : 'Productos';
+  $('#btnAddProd').hidden = !vl;
   const nMan = its.filter(it => it.manual).length;
-  $('#catInfo').textContent = (catalog.loadedAt ? `${catalog.file || 'Sin archivo'} · cargado ${new Date(catalog.loadedAt).toLocaleString('es-MX')}` : 'Sin archivo cargado') + (nMan ? ` · ${nMan} agregado${nMan===1?'':'s'} manualmente` : '');
+  $('#catInfo').textContent = vl ? (vl.id === store.active ? 'Esta es la lista en uso para vender.' : 'Esta lista no está en uso.') + (nMan ? ` ${nMan} producto${nMan===1?'':'s'} agregado${nMan===1?'':'s'} manualmente.` : '') : '';
   const list = its.map((it, i) => ({it, i})).sort((a, b) => (b.it.manual ? 1 : 0) - (a.it.manual ? 1 : 0));
   $('#catBody').innerHTML = its.length ? list.slice(0, 500).map(({it, i}) => `<tr><td>${esc(it.code)}</td><td>${esc(it.desc)} ${it.manual ? '<span class="tag m">Manual</span>' : ''}</td><td class="n">${money(it.price)}</td>
       <td class="n">${it.manual ? `<button class="linkbtn red" data-del="${i}">Quitar</button>` : ''}</td></tr>`).join('')
-    + (its.length > 500 ? `<tr><td colspan="4" class="hint">… y ${its.length-500} más</td></tr>` : '') : `<tr><td colspan="4" class="empty">Carga un archivo de Excel o agrega productos manualmente</td></tr>`;
+    + (its.length > 500 ? `<tr><td colspan="4" class="hint">… y ${its.length-500} más</td></tr>` : '') : `<tr><td colspan="4" class="empty">${vl ? 'Carga el Excel de esta lista o agrega productos manualmente' : 'Crea una lista de precios para empezar'}</td></tr>`;
 }
-$('#btnLoadCat').onclick = () => $('#fileCat').click();
+function afterListChange() { saveLists(); refreshCatalog(); renderCatalog(); renderResults(); updateHeader(); }
+function askListName(title, current, fn) {
+  $('#genSheet').innerHTML = `<h2>${esc(title)}</h2>
+    <div class="sub">Por ejemplo: Xanalab, Sesajal, Biomiral.</div>
+    <div class="field"><label for="lnName">Nombre de la lista</label><input id="lnName" autocomplete="off" value="${esc(current || '')}"></div>
+    <div class="err" id="lnErr"></div>
+    <div class="actions"><button class="btn sec" id="gNo">Regresar</button><button class="btn" id="gYes">Guardar</button></div>`;
+  $('#mGen').classList.add('on'); setTimeout(() => $('#lnName').focus(), 80);
+  $('#gNo').onclick = () => $('#mGen').classList.remove('on');
+  $('#gYes').onclick = () => {
+    const n = $('#lnName').value.trim();
+    if (!n) { $('#lnErr').textContent = 'Escribe el nombre.'; return; }
+    if (store.lists.some(l => norm(l.name) === norm(n) && norm(n) !== norm(current || ''))) { $('#lnErr').textContent = 'Ya existe una lista con ese nombre.'; return; }
+    $('#mGen').classList.remove('on'); fn(n);
+  };
+}
+$('#btnNewList').onclick = () => requirePin('Crear lista de precios', () => askListName('Nueva lista de precios', '', n => {
+  const l = {id: 'l' + Date.now(), name: n, items: [], file: '', loadedAt: null};
+  store.lists.push(l); if (!store.active) store.active = l.id; catView = l.id;
+  afterListChange(); toast(`Lista “${n}” creada. Ahora carga su Excel.`);
+}));
+let loadTarget = null;
+$('#listsBody').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.lv) { catView = t.dataset.lv; renderCatalog(); return; }
+  if (t.dataset.ll) { const l = getList(t.dataset.ll); requirePin(`Cargar Excel en “${l.name}”`, () => {
+    $('#genSheet').innerHTML = `<h2>Cargar Excel en “${esc(l.name)}”</h2>
+      <div class="sub">Se reemplazan los productos de esta lista. Los productos agregados manualmente se conservan. Las ventas ya registradas no cambian.</div>
+      <div class="actions"><button class="btn sec" id="gNo">Regresar</button><button class="btn" id="gYes">Elegir archivo</button></div>`;
+    $('#mGen').classList.add('on');
+    $('#gNo').onclick = () => $('#mGen').classList.remove('on');
+    $('#gYes').onclick = () => { loadTarget = l.id; $('#mGen').classList.remove('on'); $('#fileCat').click(); };
+  }); return; }
+  if (t.dataset.lr) { const l = getList(t.dataset.lr); requirePin(`Renombrar “${l.name}”`, () => askListName('Renombrar lista', l.name, n => { l.name = n; afterListChange(); toast('Lista renombrada'); })); return; }
+  if (t.dataset.lx) { const l = getList(t.dataset.lx); requirePin(`Eliminar “${l.name}”`, () => confirmBox(`¿Eliminar la lista “${l.name}”?`, `Se borran sus ${l.items.length} productos de este iPad. Las ventas ya registradas no cambian.`, 'Eliminar', () => {
+    store.lists = store.lists.filter(x => x.id !== l.id);
+    if (store.active === l.id) store.active = null;
+    afterListChange(); toast('Lista eliminada');
+  })); return; }
+});
 $('#fileCat').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const l = getList(loadTarget); if (!l) return;
   try {
     const wb = XLSX.read(await f.arrayBuffer(), {type: 'array'});
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1, raw: true, defval: ''});
     const {items, skipped} = parseCatalog(rows);
-    if (!items.length) { alert('No se encontraron productos. Revisa que el archivo tenga las columnas Código, Descripción y Precio.'); return; }
+    if (!items.length) { toast('No se encontraron productos. Revisa las columnas Código, Descripción y Precio.'); return; }
     const codes = new Set(items.map(it => it.code));
-    const keep = catalog.items.filter(it => it.manual && !codes.has(it.code));
-    const dup = catalog.items.filter(it => it.manual && codes.has(it.code)).length;
-    confirmBox(`¿Reemplazar el catálogo?`, `Se cargarán ${items.length} productos desde “${f.name}”.${skipped ? ` Se omitieron ${skipped} filas sin código o precio válido.` : ''}${keep.length ? ` Se conservan ${keep.length} productos agregados manualmente.` : ''}${dup ? ` ${dup} producto(s) manual(es) ya vienen en el archivo y se tomará el del archivo.` : ''}`, 'Cargar', () => {
-      catalog = {items: items.concat(keep), file: f.name, loadedAt: new Date().toISOString()};
-      save(K.cat, catalog); buildIndex(); renderCatalog(); renderResults(); toast(`Catálogo cargado: ${catalog.items.length} productos`);
+    const keep = l.items.filter(it => it.manual && !codes.has(it.code));
+    const dup = l.items.filter(it => it.manual && codes.has(it.code)).length;
+    confirmBox(`¿Cargar ${items.length} productos en “${l.name}”?`, `Archivo “${f.name}”.${skipped ? ` Se omitieron ${skipped} filas sin código o precio válido.` : ''}${keep.length ? ` Se conservan ${keep.length} productos agregados manualmente.` : ''}${dup ? ` ${dup} producto(s) manual(es) ya vienen en el archivo y se tomará el del archivo.` : ''}`, 'Cargar', () => {
+      l.items = items.concat(keep); l.file = f.name; l.loadedAt = new Date().toISOString();
+      catView = l.id; afterListChange(); toast(`Lista “${l.name}”: ${l.items.length} productos`);
     });
-  } catch (err) { alert('No se pudo leer el archivo: ' + err.message); }
+  } catch (err) { toast('No se pudo leer el archivo: ' + err.message); }
 };
+
+/* Cambiar lista en uso (Venta) */
+$('#btnList').onclick = () => {
+  if (cart.length) { toast('Termina o vacía la venta actual antes de cambiar de lista'); return; }
+  if (!store.lists.length) { show('catalogo'); toast('Primero crea una lista de precios'); return; }
+  requirePin('Cambiar lista de precios', () => {
+    $('#genSheet').innerHTML = `<h2>Lista de precios para vender</h2>
+      <div class="sub">Los productos y precios de la venta se toman de la lista que elijas.</div>
+      <div class="lpick">${store.lists.map(l => `<button data-pick="${l.id}" class="${l.id === store.active ? 'on' : ''}">${esc(l.name)} <small>${l.items.length} productos</small></button>`).join('')}</div>
+      <div class="actions"><button class="btn sec" id="gNo">Regresar</button></div>`;
+    $('#mGen').classList.add('on');
+    $('#gNo').onclick = () => $('#mGen').classList.remove('on');
+    $('.lpick').onclick = ev => {
+      const b = ev.target.closest('[data-pick]'); if (!b) return;
+      store.active = b.dataset.pick; catView = store.active; $('#mGen').classList.remove('on');
+      afterListChange(); $('#q').value = ''; renderResults(); toast('Vendiendo con la lista ' + catalog.name);
+    };
+  });
+};
+
 function parseCatalog(rows) {
   let ci = 0, di = 1, pi = 2, start = 0;
   const h = (rows[0] || []).map(norm);
@@ -629,22 +746,24 @@ $('#btnTpl').onclick = () => {
 };
 
 /* ---------- Alta manual de productos ---------- */
-$('#btnAddProd').onclick = () => openAddProduct('', false);
+$('#btnAddProd').onclick = () => { const l = getList(catView); if (l) requirePin('Agregar producto', () => openAddProduct('', false, l)); };
 $('#catBody').addEventListener('click', e => {
   const b = e.target.closest('[data-del]'); if (!b) return;
-  const it = catalog.items[+b.dataset.del];
-  confirmBox(`¿Quitar “${it.desc}” del catálogo?`, 'Las ventas ya registradas con este producto no se modifican.', 'Quitar', () => {
-    catalog.items.splice(+b.dataset.del, 1); save(K.cat, catalog); buildIndex(); renderCatalog(); renderResults(); toast('Producto quitado');
-  });
+  const l = getList(catView); const it = l.items[+b.dataset.del];
+  requirePin('Quitar producto', () => confirmBox(`¿Quitar “${it.desc}” de la lista ${l.name}?`, 'Las ventas ya registradas con este producto no se modifican.', 'Quitar', () => {
+    l.items.splice(l.items.indexOf(it), 1); afterListChange(); toast('Producto quitado');
+  }));
 });
-function openAddProduct(text, fromSale) {
+function openAddProduct(text, fromSale, l) {
+  l = l || catalog;
+  if (!l || !l.id) { toast('Primero elige una lista de precios'); return; }
   const looksCode = text && !/\s/.test(text) && /\d/.test(text);
-  $('#genSheet').innerHTML = `<h2>Agregar producto</h2>
-    <div class="sub">Se guarda en el catálogo de este iPad y queda disponible para siguientes ventas.</div>
+  $('#genSheet').innerHTML = `<h2>Agregar producto a “${esc(l.name)}”</h2>
+    <div class="sub">Se guarda en esta lista de precios de este iPad y queda disponible para siguientes ventas.</div>
     <div class="field"><label for="npCode">Código</label><input id="npCode" autocomplete="off" autocapitalize="characters" value="${esc(looksCode ? text : '')}"></div>
     <div class="field"><label for="npDesc">Descripción</label><input id="npDesc" autocomplete="off" value="${esc(looksCode ? '' : text)}"></div>
     <div class="field"><label for="npPrice">Precio</label><input id="npPrice" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
-    <label class="chk-row"><input type="checkbox" id="npCart" ${fromSale ? 'checked' : ''}> Agregarlo también a la venta actual</label>
+    ${l.id === store.active ? `<label class="chk-row"><input type="checkbox" id="npCart" ${fromSale ? 'checked' : ''}> Agregarlo también a la venta actual</label>` : ''}
     <div class="err" id="npErr"></div>
     <div class="actions"><button class="btn sec" id="gNo">Regresar</button><button class="btn" id="gYes">Guardar producto</button></div>`;
   $('#mGen').classList.add('on');
@@ -654,19 +773,79 @@ function openAddProduct(text, fromSale) {
     const code = $('#npCode').value.trim(), desc = $('#npDesc').value.trim(), price = parseNum($('#npPrice').value);
     const err = m => { $('#npErr').textContent = m; };
     if (!code) return err('Escribe el código del producto.');
-    if (catalog.items.some(it => norm(it.code) === norm(code))) return err('Ya existe un producto con ese código.');
+    if (l.items.some(it => norm(it.code) === norm(code))) return err('Ya existe un producto con ese código en esta lista.');
     if (!desc) return err('Escribe la descripción.');
     if (isNaN(price) || price < 0) return err('Escribe un precio válido, por ejemplo 45 o 38.50.');
     const it = {code, desc, price: r2(price), manual: true, addedAt: new Date().toISOString()};
-    catalog.items.push(it);
-    if (!save(K.cat, catalog)) { catalog.items.pop(); return; }
-    buildIndex(); renderCatalog();
+    l.items.push(it);
+    if (!saveLists()) { l.items.pop(); return; }
+    const toCart = $('#npCart') && $('#npCart').checked;
     $('#mGen').classList.remove('on');
-    if ($('#npCart').checked) { addToCart(it); $('#q').value = ''; }
+    refreshCatalog(); renderCatalog();
+    if (toCart) { addToCart(it); $('#q').value = ''; }
     else toast('Producto agregado: ' + desc);
     renderResults();
   };
 }
+
+/* ---------- NIP de administrador ---------- */
+let adminUntil = 0, pinFails = 0, pinLockUntil = 0;
+async function hashPin(pin, salt) {
+  const data = new TextEncoder().encode(salt + ':' + pin);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const pinSet = () => !!load(K.pin, null);
+function requirePin(title, fn) {
+  if (!pinSet()) {
+    $('#genSheet').innerHTML = `<h2>Falta el NIP de administrador</h2>
+      <div class="sub">Para ${esc(title.toLowerCase())} primero hay que crear el NIP en Reporte → Configuración. Pide a Sistemas que lo configure.</div>
+      <div class="actions"><button class="btn" id="gNo">Entendido</button></div>`;
+    $('#mGen').classList.add('on'); $('#gNo').onclick = () => $('#mGen').classList.remove('on');
+    return;
+  }
+  if (Date.now() < adminUntil) { fn(); return; }
+  $('#genSheet').innerHTML = `<h2>${esc(title)}</h2>
+    <div class="sub">Escribe el NIP de administrador.</div>
+    <div class="field"><input id="pinIn" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off"></div>
+    <div class="err" id="pinErr"></div>
+    <div class="actions"><button class="btn sec" id="gNo">Regresar</button><button class="btn" id="gYes">Continuar</button></div>`;
+  $('#mGen').classList.add('on'); setTimeout(() => $('#pinIn').focus(), 80);
+  $('#gNo').onclick = () => $('#mGen').classList.remove('on');
+  const go = async () => {
+    if (Date.now() < pinLockUntil) { $('#pinErr').textContent = `Demasiados intentos. Espera ${Math.ceil((pinLockUntil - Date.now())/1000)} segundos.`; return; }
+    const st = load(K.pin, null), v = $('#pinIn').value.trim();
+    if (st && await hashPin(v, st.salt) === st.hash) {
+      pinFails = 0; adminUntil = Date.now() + 2 * 60 * 1000;
+      $('#mGen').classList.remove('on'); fn();
+    } else {
+      pinFails++; $('#pinIn').value = '';
+      if (pinFails >= 5) { pinFails = 0; pinLockUntil = Date.now() + 60 * 1000; $('#pinErr').textContent = 'NIP incorrecto. Espera 1 minuto para intentar de nuevo.'; }
+      else $('#pinErr').textContent = 'NIP incorrecto.';
+    }
+  };
+  $('#gYes').onclick = go;
+  $('#pinIn').onkeydown = e => { if (e.key === 'Enter') go(); };
+}
+function askNewPin() {
+  $('#genSheet').innerHTML = `<h2>${pinSet() ? 'Cambiar' : 'Crear'} NIP de administrador</h2>
+    <div class="sub">De 4 a 8 números. Se guarda solo en este iPad; si se olvida, la única forma de quitarlo es borrar los datos de la app.</div>
+    <div class="field"><label for="pin1">NIP nuevo</label><input id="pin1" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off"></div>
+    <div class="field"><label for="pin2">Repite el NIP</label><input id="pin2" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off"></div>
+    <div class="err" id="pinErr"></div>
+    <div class="actions"><button class="btn sec" id="gNo">Regresar</button><button class="btn" id="gYes">Guardar NIP</button></div>`;
+  $('#mGen').classList.add('on'); setTimeout(() => $('#pin1').focus(), 80);
+  $('#gNo').onclick = () => $('#mGen').classList.remove('on');
+  $('#gYes').onclick = async () => {
+    const a = $('#pin1').value.trim(), b = $('#pin2').value.trim();
+    if (!/^\d{4,8}$/.test(a)) { $('#pinErr').textContent = 'El NIP debe tener de 4 a 8 números.'; return; }
+    if (a !== b) { $('#pinErr').textContent = 'Los dos NIP no coinciden.'; return; }
+    const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    save(K.pin, {salt, hash: await hashPin(a, salt)});
+    adminUntil = 0; $('#mGen').classList.remove('on'); renderReport(); toast('NIP guardado');
+  };
+}
+$('#btnPin').onclick = () => { if (pinSet()) requirePin('Cambiar NIP', askNewPin); else askNewPin(); };
 
 /* ---------- Reporte ---------- */
 function rangeSales() {
@@ -677,6 +856,8 @@ function renderReport() {
   if (!$('#rFrom').value) { const d = dKey(new Date()); $('#rFrom').value = d; $('#rTo').value = d; }
   $('#rStats').innerHTML = statsHTML(summarize(rangeSales()));
   $('#cfgPlace').value = cfg.place || '';
+  $('#pinState').textContent = pinSet() ? 'Configurado' : 'Sin configurar';
+  $('#btnPin').textContent = pinSet() ? 'Cambiar NIP' : 'Crear NIP';
   const sel = $('#cfgDevice');
   if (!sel.options.length) sel.innerHTML = `<option value="">— Elige la letra —</option>` + DEVICES.map(d => `<option value="${d}">iPad ${d}</option>`).join('');
   $('#devSet').hidden = !!cfg.device;
@@ -720,33 +901,39 @@ $('#btnExport').onclick = () => {
     ['Forma de pago', 'Ventas', 'Importe'],
     ...METHODS.map(m => [m, ok.filter(s => salePayments(s).some(x => x.method === m)).length, sm.by[m] || 0]),
     ['TOTAL', sm.count, sm.total], [],
-    ['Ventas con pago combinado', ok.filter(s => salePayments(s).length > 1).length, '(ya incluidas arriba en cada forma de pago)']
+    ['Ventas con pago combinado', ok.filter(s => salePayments(s).length > 1).length, '(ya incluidas arriba en cada forma de pago)'], []
   ];
-  addSheet(wb, 'Resumen', res, [{wch:24},{wch:28},{wch:14}], [9, 12, 13, 14, 15]);
+  const lists = [...new Set(ok.map(s => s.priceList || '(sin lista)'))];
+  const listRow0 = res.length + 1;
+  res.push(['Lista de precios', 'Ventas', 'Importe']);
+  lists.forEach(n => { const v = ok.filter(s => (s.priceList || '(sin lista)') === n); res.push([n, v.length, r2(v.reduce((a, s) => a + s.total, 0))]); });
+  const listRows = lists.map((_, i) => listRow0 + i);
+  addSheet(wb, 'Resumen', res, [{wch:24},{wch:28},{wch:14}], [9, 12, 13, 14, 15, ...listRows]);
 
   // Detalle por artículo
-  const det = [['Folio','iPad','Fecha','Hora','Lugar','Código','Descripción','Cantidad','Precio unitario','Importe','Forma de pago','Estatus']];
-  list.forEach(s => s.items.forEach(i => det.push([s.folio, s.device || '', s.date, s.time, s.place, i.code, i.desc, i.qty, i.price, i.amount, methodLabel(s), s.status])));
-  addSheet(wb, 'Detalle', det, [{wch:10},{wch:6},{wch:11},{wch:7},{wch:18},{wch:14},{wch:40},{wch:9},{wch:13},{wch:12},{wch:32},{wch:11}], null, [8, 9]);
+  const det = [['Folio','iPad','Fecha','Hora','Lugar','Lista de precios','Código','Descripción','Cantidad','Precio unitario','Importe','Forma de pago','Estatus']];
+  list.forEach(s => s.items.forEach(i => det.push([s.folio, s.device || '', s.date, s.time, s.place, s.priceList || '', i.code, i.desc, i.qty, i.price, i.amount, methodLabel(s), s.status])));
+  addSheet(wb, 'Detalle', det, [{wch:10},{wch:6},{wch:11},{wch:7},{wch:18},{wch:16},{wch:14},{wch:40},{wch:9},{wch:13},{wch:12},{wch:32},{wch:11}], null, [9, 10]);
 
   // Ventas
-  const vt = [['Folio','iPad','Fecha','Hora','Lugar','Artículos','Total','Forma de pago','Efectivo','Tarjeta','Transferencia','Efectivo recibido','Cambio','Estatus']];
+  const vt = [['Folio','iPad','Fecha','Hora','Lugar','Lista de precios','Artículos','Total','Forma de pago','Efectivo','Tarjeta','Transferencia','Efectivo recibido','Cambio','Estatus']];
   list.forEach(s => {
     const pm = m => r2(salePayments(s).filter(x => x.method === m).reduce((a, x) => a + x.amount, 0));
-    vt.push([s.folio, s.device || '', s.date, s.time, s.place, s.items.reduce((a,i)=>a+i.qty,0), s.total, s.method, pm('Efectivo'), pm('Tarjeta'), pm('Transferencia'), pm('Efectivo') > 0 ? s.received : 0, s.change, s.status]);
+    vt.push([s.folio, s.device || '', s.date, s.time, s.place, s.priceList || '', s.items.reduce((a,i)=>a+i.qty,0), s.total, s.method, pm('Efectivo'), pm('Tarjeta'), pm('Transferencia'), pm('Efectivo') > 0 ? s.received : 0, s.change, s.status]);
   });
-  addSheet(wb, 'Ventas', vt, [{wch:10},{wch:6},{wch:11},{wch:7},{wch:18},{wch:10},{wch:12},{wch:14},{wch:12},{wch:12},{wch:13},{wch:15},{wch:10},{wch:11}], null, [6, 8, 9, 10, 11, 12]);
+  addSheet(wb, 'Ventas', vt, [{wch:10},{wch:6},{wch:11},{wch:7},{wch:18},{wch:16},{wch:10},{wch:12},{wch:14},{wch:12},{wch:12},{wch:13},{wch:15},{wch:10},{wch:11}], null, [7, 9, 10, 11, 12, 13]);
 
   // Por producto
   const agg = new Map();
   ok.forEach(s => s.items.forEach(i => {
-    const a = agg.get(i.code) || {code: i.code, desc: i.desc, qty: 0, amount: 0};
-    a.qty += i.qty; a.amount = r2(a.amount + i.amount); agg.set(i.code, a);
+    const k = (s.priceList || '') + '|' + i.code;
+    const a = agg.get(k) || {list: s.priceList || '', code: i.code, desc: i.desc, qty: 0, amount: 0};
+    a.qty += i.qty; a.amount = r2(a.amount + i.amount); agg.set(k, a);
   }));
-  const pr = [['Código','Descripción','Cantidad vendida','Importe']];
-  [...agg.values()].sort((a,b) => b.amount - a.amount).forEach(a => pr.push([a.code, a.desc, a.qty, a.amount]));
-  pr.push(['', 'TOTAL', [...agg.values()].reduce((s,a)=>s+a.qty,0), sm.total]);
-  addSheet(wb, 'Por producto', pr, [{wch:14},{wch:40},{wch:16},{wch:14}], null, [3]);
+  const pr = [['Lista de precios','Código','Descripción','Cantidad vendida','Importe']];
+  [...agg.values()].sort((a,b) => a.list.localeCompare(b.list) || b.amount - a.amount).forEach(a => pr.push([a.list, a.code, a.desc, a.qty, a.amount]));
+  pr.push(['', '', 'TOTAL', [...agg.values()].reduce((s,a)=>s+a.qty,0), sm.total]);
+  addSheet(wb, 'Por producto', pr, [{wch:16},{wch:14},{wch:40},{wch:16},{wch:14}], null, [4]);
 
   const a = $('#rFrom').value, b = $('#rTo').value;
   deliverWorkbook(wb, `Ventas_Empleados_${cfg.device ? cfg.device + '_' : ''}${a}${b && b !== a ? '_a_' + b : ''}.xlsx`);
@@ -779,6 +966,9 @@ async function deliverWorkbook(wb, name) {
 
 $('#btnWipe').onclick = () => {
   if (!sales.length) { toast('No hay ventas guardadas'); return; }
+  requirePin('Borrar ventas', wipeDialog);
+};
+function wipeDialog() {
   const tot = summarize(sales);
   $('#genSheet').innerHTML = `<h2>Borrar ${sales.length} ventas</h2>
     <div class="sub">Total ${money(tot.total)}. Esta acción no se puede deshacer. Escribe <b>BORRAR</b> para confirmar.</div>
@@ -802,10 +992,10 @@ function confirmBox(title, sub, okText, fn) {
   $('#gNo').onclick = () => $('#mGen').classList.remove('on');
   $('#gYes').onclick = () => { $('#mGen').classList.remove('on'); fn(); };
 }
-function updateHeader() { $('#hdrPlace').textContent = [cfg.device ? 'iPad ' + cfg.device : '', cfg.place].filter(Boolean).map(x => '· ' + x).join(' '); }
+function updateHeader() { $('#hdrPlace').textContent = [cfg.device ? 'iPad ' + cfg.device : '', catalog.id ? 'Precios ' + catalog.name : '', cfg.place].filter(Boolean).map(x => '· ' + x).join(' '); }
 
 /* ---------- Inicio ---------- */
-buildIndex(); updateHeader(); renderResults(); renderCart();
+refreshCatalog(); updateHeader(); renderResults(); renderCart();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(()=>{});
